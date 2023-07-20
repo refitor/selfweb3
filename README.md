@@ -1,2 +1,2 @@
 # selfWeb3
-A mandatory private dynamic authorization mechanism for all on-chain operations, web2Auth + zero-knowledge proof
+A web3 solution that strengthens the security of on-chain data ownership, provides privatization guarantees for all on-chain data through mandatory dynamic authorization, instead of wallets, webAuthn + TOTP + zero-knowledge proof
