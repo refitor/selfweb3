@@ -17,7 +17,7 @@ go.sum
 
 .env
 .idea
-.DS_Store/
+.DS_Store
 dist/
 vendor/
 selfweb3/
