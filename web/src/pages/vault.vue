@@ -20,20 +20,20 @@
         <div class="layout">
             <div class="layout-content-center">
                 <h2 id="authTitle" style="text-align: center; margin-bottom: 20px;">SelfVault</h2>
-                <h3 style="text-align: center; margin-bottom: 20px;"><a href="javascript:void(0)" @click="openLink('https://github.com/refitor/selfweb3/blob/main/contracts/selfVault.sol')">{{contractAddress}}</a></h3>
+                <!-- <h3 style="text-align: center; margin-bottom: 20px;"><a href="javascript:void(0)" @click="openLink('https://github.com/refitor/selfweb3/blob/main/contracts/selfVault.sol')">{{contractAddress}}</a></h3> -->
                 <Input v-model="modelWalletBalance" type="text" readonly ><span slot="prepend">Wallet</span></Input>
                 <Input v-model="modelBalance" type="text" readonly style="margin-top: 20px;"><span slot="prepend">Balance</span></Input>
                 <Row style="margin-top: 20px;">
                     <Col span="21">
-                        <Input v-model="modelAmount" type="text" readonly><span slot="prepend">Amount</span></Input>
+                        <Input v-model="modelAmount" type="text"><span slot="prepend">Amount</span></Input>
                     </Col>
                     <Col span="3" style="margin-top: 5px;">
                         <a href="javascript:void(0)" @click="modelAmount = modelWalletBalance" style="margin-left: 5px;">Max</a>
                     </Col>
                 </Row>
-                <Button @click="back()" type="primary" style="margin-top: 20px; margin-left: 10px;">Back</Button>
-                <Button :disabled="walletAddress === ''" @click="deposit()" type="primary" style="margin-top: 20px; margin-left: 10px;">Deposit</Button>
-                <Button :disabled="walletAddress === ''" @click="withdraw()" type="primary" style="margin-top: 20px; margin-left: 10px;">Withdraw</Button>
+                <Button @click="back()" type="primary" style="margin-top: 20px;">Back</Button>
+                <Button :disabled="parseInt(modelAmount) <= 0" @click="deposit()" type="primary" style="margin-top: 20px; margin-left: 10px;">Deposit</Button>
+                <Button :disabled="parseInt(modelAmount) <= 0" @click="withdraw()" type="primary" style="margin-top: 20px; margin-left: 10px;">Withdraw</Button>
                 <Button v-show="triggerTx !== ''" @click="openLink(triggerTx)" type="primary" style="margin-top: 20px; margin-left: 10px;">Transaction</Button>
             </div>
         </div>
@@ -69,9 +69,28 @@ export default {
             console.log('init SelfVault: ', web3Key);
         },
         deposit() {
+            let self = this;
+            let amount = parseInt(this.modelAmount);
+            if (amount <= 0) {
+                this.$Message.error('amount must be valid');
+                return
+            }
+
+            self.$parent.getSelf().switchPanel('verify', '', function(verifyParam) {
+                
+            })
         },
         withdraw() {
+            let self = this;
+            let amount = parseInt(this.modelAmount);
+            if (amount <= 0) {
+                this.$Message.error('amount must be valid');
+                return
+            }
 
+            self.$parent.getSelf().switchPanel('verify', '', function(verifyParam) {
+                
+            })
         }
     }
 }
