@@ -32,8 +32,8 @@
                     </Col>
                 </Row>
                 <Button @click="back()" type="primary" style="margin-top: 20px;">Back</Button>
-                <Button :disabled="parseInt(modelAmount) <= 0" @click="deposit()" type="primary" style="margin-top: 20px; margin-left: 10px;">Deposit</Button>
-                <Button :disabled="parseInt(modelAmount) <= 0" @click="withdraw()" type="primary" style="margin-top: 20px; margin-left: 10px;">Withdraw</Button>
+                <Button :disabled="parseInt(modelAmount) <= 0" @click="execute(deposit)" type="primary" style="margin-top: 20px; margin-left: 10px;">Deposit</Button>
+                <Button :disabled="parseInt(modelAmount) <= 0" @click="execute(withdraw)" type="primary" style="margin-top: 20px; margin-left: 10px;">Withdraw</Button>
                 <Button v-show="triggerTx !== ''" @click="openLink(triggerTx)" type="primary" style="margin-top: 20px; margin-left: 10px;">Transaction</Button>
             </div>
         </div>
@@ -49,8 +49,8 @@ export default {
             triggerTx: '',
             contractAddress: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
 
-            modelBalance: 111,
-            modelWalletBalance: 0,
+            modelBalance: 100,
+            modelWalletBalance: 10,
             modelAmount: 0,
         }
     },
@@ -68,6 +68,12 @@ export default {
             let self = this;
             console.log('init SelfVault: ', web3Key);
         },
+        execute(callback) {
+            let self = this;
+            self.$parent.getSelf().switchPanel('verify', '', function(verifyParam) {
+                if (callback !== undefined && callback !== null) callback(verifyParam);
+            })
+        },
         deposit() {
             let self = this;
             let amount = parseInt(this.modelAmount);
@@ -76,9 +82,6 @@ export default {
                 return
             }
 
-            self.$parent.getSelf().switchPanel('verify', '', function(verifyParam) {
-                
-            })
         },
         withdraw() {
             let self = this;
@@ -88,9 +91,7 @@ export default {
                 return
             }
 
-            self.$parent.getSelf().switchPanel('verify', '', function(verifyParam) {
-                
-            })
+
         }
     }
 }
