@@ -19,16 +19,139 @@ import { web3chains, ethereumClient, web3Modal } from '../web3modal.js';
 export default {
     data() {
         return {
-            network: '',
             connected: false,
 
             web3: null,
-
+            networkId: '',
             contractAddrMap: {
-                'goerli': '0x8eD8bC11E8c2EB21Eb8C1507CD7F60B01cAD8f1E',
-                'mainnet': '0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1'
+                '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df'
             },
             contractABI: [
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "signature",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "message",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "Deposit",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "wallet",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "feeRate",
+                            "type": "uint256"
+                        }
+                    ],
+                    "stateMutability": "nonpayable",
+                    "type": "constructor"
+                },
+                {
+                    "anonymous": false,
+                    "inputs": [
+                        {
+                            "indexed": true,
+                            "internalType": "address",
+                            "name": "previousOwner",
+                            "type": "address"
+                        },
+                        {
+                            "indexed": true,
+                            "internalType": "address",
+                            "name": "newOwner",
+                            "type": "address"
+                        }
+                    ],
+                    "name": "OwnershipTransferred",
+                    "type": "event"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "recoverID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "web3Key",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "backendKey",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "Register",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [],
+                    "name": "renounceOwnership",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "newOwner",
+                            "type": "address"
+                        }
+                    ],
+                    "name": "transferOwnership",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "signature",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "message",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "amount",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "Withdraw",
+                    "outputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "",
+                            "type": "uint256"
+                        }
+                    ],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
                 {
                     "inputs": [
                         {
@@ -64,46 +187,31 @@ export default {
                     "type": "function"
                 },
                 {
-                    "inputs": [
-                        {
-                            "internalType": "bytes",
-                            "name": "recoverID",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "web3Key",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "backendKey",
-                            "type": "bytes"
-                        }
-                    ],
-                    "name": "Register",
-                    "outputs": [],
-                    "stateMutability": "payable",
-                    "type": "function"
-                },
-                {
                     "inputs": [],
                     "name": "Meta",
                     "outputs": [
                         {
                             "internalType": "uint256",
-                            "name": "storeFee",
+                            "name": "feeRate",
                             "type": "uint256"
-                        },
-                        {
-                            "internalType": "address",
-                            "name": "nftAddr",
-                            "type": "address"
                         },
                         {
                             "internalType": "uint256",
                             "name": "registTotal",
                             "type": "uint256"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "inputs": [],
+                    "name": "owner",
+                    "outputs": [
+                        {
+                            "internalType": "address",
+                            "name": "",
+                            "type": "address"
                         }
                     ],
                     "stateMutability": "view",
@@ -117,43 +225,64 @@ export default {
         ethereumClient.watchAccount(function(account) {
             self.onAccount(account);
         });
-        
-        ethereumClient.watchNetwork(function(network) {
-            self.onNetwork(network);
-        });
+        // ethereumClient.watchNetwork(function(network) {
+        //     self.onNetwork(network);
+        // });
     },
     methods: {
         async onAccount(account) {
-            this.walletAddress = account['address'];
-            if (account['address'] === undefined) {
-                this.web3 = null;
-                this.$parent.onAccountChanged('disconnect', this.network, '');
-                return
-            }
-            const provider = account['connector']['options'].getProvider();
-            console.log('wallet connect successed, account: ', account, provider);
+            let self = this;
+            const walletAddress = account['address'];
+            if (account['address'] !== undefined) {
+                const provider = account['connector']['options'].getProvider();
+                
+                const web3 = new Web3(provider);
+                const networkId = await web3.eth.net.getId();
+                console.log('wallet connect successed: ', networkId, account, web3, provider);
+                if (this.contractAddrMap[networkId] === undefined) {
+                    this.$Modal.error({
+                        title: 'unsupport network',
+                        content: 'Currently supported chainId list: ' + Object.keys(this.contractAddrMap),
+                    });
+                    ethereumClient.disconnect();
+                    return;
+                }
+                this.web3 = web3;
+                this.networkId = networkId;
+                this.$parent.onAccountChanged('connect', this.networkId, walletAddress);
 
-            this.web3 = new Web3(provider);
-            this.network = await this.web3.eth.net.getNetworkType();
-            if (this.network === 'main') this.network = 'mainnet';
-            if (this.network === 'private') {
-                this.$Modal.error({
-                    title: 'unsupport network',
-                    content: 'Currently supported chain list: ' + web3chains,
+                // Subscribe to accounts change
+                account['connector'].on("change", (eventParam) => {
+                    console.log("event change: ", eventParam);
+                    self.web3Reload('change');
                 });
-                return;
+
+                // Subscribe to account disconnect
+                account['connector'].on("disconnect", (eventParam) => {
+                    console.log("event disconnect: ", eventParam);
+                    self.web3Reload('disconnect');
+                });
+
+                // Subscribe to account disconnect
+                account['connector'].on("error", (eventParam) => {
+                    console.log("event error: ", eventParam);
+                    self.web3Reload('error');
+                });
+            } else {
+                this.web3Reload('disconnect');
             }
-            this.$parent.onAccountChanged('connect', this.network, this.walletAddress);
         },
-        async onNetwork(network) {
-            console.log('wallet.vue: ', network)
+        web3Reload(event) {
+            this.web3 = null;
+            this.networkId = '';
+            this.$parent.onAccountChanged(event, this.networkId, '');
         },
         getWeb3() {
             return this.web3;
         },
         async Execute(executeFunc, methodName, walletAddress, msgValue, params, successed, failed) {
-            console.log(this.contractAddrMap[this.network], this.contractABI, executeFunc, methodName, walletAddress, msgValue, params);
-            const myContract = new this.web3.eth.Contract(this.contractABI, this.contractAddrMap[this.network]);
+            console.log(this.contractAddrMap[this.networkId], this.contractABI, executeFunc, methodName, walletAddress, msgValue, params);
+            const myContract = new this.web3.eth.Contract(this.contractABI, this.contractAddrMap[this.networkId]);
             let web3Func = myContract.methods[methodName];
 
             let self = this;

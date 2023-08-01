@@ -32,6 +32,14 @@ export default defineConfig({
       cache: false,
     },
     outDir: "../rsweb/app",
+
+    terserOptions: {
+        compress: {
+            //生产环境时移除console
+            drop_console: true,
+            drop_debugger: true,
+        },
+    },
   },
   plugins: [
     // vue()

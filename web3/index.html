@@ -6,11 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
     <title>SelfWeb3</title>
+    <script type="module">
+      import { Buffer } from "buffer";
+      window.Buffer = Buffer;
+    </script> 
   </head>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/wasm.js"></script>
     <script type="module" src="/src/main.ts"></script>
-    <script type="module" src="/src/web3modal.js"></script>
+    <!-- <script type="module" src="/src/web3modal.js"></script> -->
   </body>
 </html>

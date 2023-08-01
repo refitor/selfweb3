@@ -18,14 +18,14 @@ contract selfweb3 is Ownable {
         uint256 feeRate;
         uint256 registTotal;
     }
-    struct StoreData {
+    struct SelfData {
         bytes recoverID;
         bytes web3Key;
         bytes backendKey;
     }
     MetaData private _metaData;
     mapping (address => uint256) private _vaultMap;
-    mapping (address => StoreData) private _dataMap;
+    mapping (address => SelfData) private _dataMap;
 
     /**
      * @dev constructor is used to populate the meta information of the contract.
@@ -44,12 +44,12 @@ contract selfweb3 is Ownable {
      * @param backendKey backend key specified by the back end.
      */
     function Register(bytes calldata recoverID, bytes calldata web3Key, bytes calldata backendKey) external payable {
-        StoreData memory sd = _getKV(msg.sender);
+        SelfData memory sd = _getKV(msg.sender);
         require(sd.web3Key.length == 0, "duplicate registration");
         require(web3Key.length != 0, "web3Key must be non-empty");
         require(recoverID.length != 0, "recoverID must be non-empty");
         require(backendKey.length != 0, "backendKey must be non-empty");
-        sd = StoreData(recoverID, web3Key, backendKey);
+        sd = SelfData(recoverID, web3Key, backendKey);
         _setKV(msg.sender, sd);
     }
 
@@ -60,7 +60,7 @@ contract selfweb3 is Ownable {
      */
     function Load(bytes calldata signature, bytes calldata message) view external returns (bytes memory recoverID, bytes memory web3Key, bytes memory backendKey) {
         require(_verify(signature, message) == msg.sender, "permission denied");
-        StoreData memory sd = _getKV(msg.sender);
+        SelfData memory sd = _getKV(msg.sender);
         require(sd.web3Key.length != 0, "not registered yet");
         return (sd.recoverID, sd.web3Key, sd.backendKey);
     }
@@ -72,7 +72,7 @@ contract selfweb3 is Ownable {
      */
     function Deposit(bytes calldata signature, bytes calldata message) external payable {
         require(_verify(signature, message) == msg.sender, "permission denied");
-        StoreData memory sd = _getKV(msg.sender);
+        SelfData memory sd = _getKV(msg.sender);
         require(sd.web3Key.length != 0, "not registered yet");
         require(msg.value > 0, "invalid deposited amount");
         _setVault(address(0), _getVault(address(0)) + msg.value);
@@ -86,7 +86,7 @@ contract selfweb3 is Ownable {
      */
     function Withdraw(bytes calldata signature, bytes calldata message, uint256 amount) external payable returns (uint256) {
         require(_verify(signature, message) == msg.sender, "permission denied");
-        StoreData memory sd = _getKV(msg.sender);
+        SelfData memory sd = _getKV(msg.sender);
         require(sd.web3Key.length != 0, "not registered yet");
         require(amount > 0, "invalid withdraw amount");
         MetaData memory md = _get();
@@ -125,7 +125,7 @@ contract selfweb3 is Ownable {
      * @param k the key for _datamap.
      * @param v the value for _datamap.
      */
-    function _setKV(address k, StoreData memory v) private {
+    function _setKV(address k, SelfData memory v) private {
         _dataMap[k] = v;
         _metaData.registTotal = _metaData.registTotal + 1;
     }
@@ -134,7 +134,7 @@ contract selfweb3 is Ownable {
      * @dev _getKV is used to get the value by the key.
      * @param k the key for _datamap.
      */
-    function _getKV(address k) private view  returns (StoreData memory sd) {
+    function _getKV(address k) private view  returns (SelfData memory sd) {
         return _dataMap[k];
     }
 

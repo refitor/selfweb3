@@ -1,4 +1,4 @@
-# selfweb3
+# SelfWeb3
 
 ## Project setup
 ```
