@@ -1,26 +1,25 @@
 package wasm
 
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
-	"time"
 
-	"selfweb3/common/rsauth"
+	"selfweb3/pkg/rsauth"
+	"selfweb3/pkg/rscrypto"
+	"selfweb3/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/refitor/rslog"
 )
 
 const (
-	c_Data_Pass           = "pass"
-	c_Data_Reload         = "reload"
-	c_Data_Pending        = "pending"
-	c_Data_Success        = "successed"
-	c_Error_Denied        = "permission denied"
-	c_Error_InvalidParams = "invalid request params"
+	c_Data_Pass               = "pass"
+	c_Data_Reload             = "reload"
+	c_Data_Pending            = "pending"
+	c_Data_Success            = "successed"
+	c_Error_Denied            = "permission denied"
+	c_Error_InvalidParams     = "invalid request params"
+	c_Error_SystenmExeception = "system processing exception"
 )
 
 type Response struct {
@@ -45,11 +44,11 @@ func Load(datas ...string) *Response {
 	authID, web3Public, backendKey := datas[0], datas[1], datas[2]
 
 	// cache backendKey
-	_, err := GetAuthUser(authID, web3Public, backendKey)
+	_, err := LoadAuthUser(authID, web3Public, backendKey)
 	if err != nil {
-		return wasmResponse(nil, WebError(err, ""))
+		return wasmResponse(nil, rsweb.WebError(err, ""))
 	}
-	return wasmResponse(hex.EncodeToString(crypto.CompressPubkey(vserver.public)), "")
+	return wasmResponse(hex.EncodeToString(crypto.CompressPubkey(vWorker.public)), "")
 }
 
 // @request authID: wallet address
@@ -64,22 +63,22 @@ func Register(datas ...string) *Response {
 	authID, recoverID := datas[0], datas[1]
 
 	// register user
-	auser, err := GetAuthUser(authID, "", "")
+	auser, err := LoadAuthUser(authID, "", "")
 	if err != nil {
-		return wasmResponse(nil, WebError(err, ""))
+		return wasmResponse(nil, rsweb.WebError(err, ""))
 	}
 
 	// init backendKey and recoverID
 	encryptedRecoverID, encryptedBackendKey, err := auser.Init(authID, recoverID, nil)
 	if err != nil {
-		return wasmResponse(nil, WebError(err, "encrypt backendKey or recoverID failed"))
+		return wasmResponse(nil, rsweb.WebError(err, "encrypt backendKey or recoverID failed"))
 	}
 
-	retMap := make(map[string]string, 0)
-	retMap["recoverID"] = encryptedRecoverID
-	retMap["backendKey"] = encryptedBackendKey
-	retMap["qrcode"], _ = auser.GetQrcode(authID)
-	return wasmResponse(retMap, "")
+	vWorker := make(map[string]string, 0)
+	vWorker["recoverID"] = encryptedRecoverID
+	vWorker["backendKey"] = encryptedBackendKey
+	vWorker["qrcode"], _ = auser.GetQrcode(authID)
+	return wasmResponse(vWorker, "")
 }
 
 // Post: /api/user/recover
@@ -93,9 +92,9 @@ func Recover(datas ...string) *Response {
 	authID, pushID := datas[0], datas[1]
 
 	// send verify code
-	code := GetRandom(6, true)
-	if err := vserver.SetCacheByTime("recoveryCode-"+authID, code, true, 300, nil); err != nil {
-		return wasmResponse(nil, WebError(err, ""))
+	code := rscrypto.GetRandom(6, true)
+	if err := SetCacheByTime("recoveryCode-"+authID, code, true, 300, nil); err != nil {
+		return wasmResponse(nil, rsweb.WebError(err, ""))
 	}
 
 	// sendCh := make(chan struct{})
@@ -105,12 +104,12 @@ func Recover(datas ...string) *Response {
 	// 	}
 	// 	close(sendCh)
 	// }); err != nil {
-	// 	return wasmResponse(nil, WebError(err, ""))
+	// 	return wasmResponse(nil, rsweb.WebError(err, ""))
 	// }
 	// <-sendCh
 
 	// rslog.Debugf("push code to recoverID successed, recoverID: %s, code: %s", pushID, code)
-	vserver.SetCache("pushID-"+authID, pushID, true)
+	SetCache("pushID-"+authID, pushID, true)
 
 	return wasmResponse(code, "")
 }
@@ -129,18 +128,18 @@ func Auth(datas ...string) *Response {
 	authParams1, authParams2 := datas[3], datas[4]
 
 	// verify user
-	auser, err := GetAuthUser(authID, "", "")
+	auser, err := LoadAuthUser(authID, "", "")
 	if err != nil {
-		return wasmResponse(nil, WebError(err, ""))
+		return wasmResponse(nil, rsweb.WebError(err, ""))
 	}
 	if auser.SelfPrivate == nil {
-		return wasmResponse(nil, WebError(err, c_Data_Reload))
+		return wasmResponse(nil, rsweb.WebError(err, c_Data_Reload))
 	}
 
 	// verify by google
 	var verifyErr error
 	var responseData interface{}
-	retMap := make(map[string]interface{}, 0)
+	vWorker := make(map[string]interface{}, 0)
 	switch kind {
 	case "google":
 		secret, err := auser.getKey(auser.Web3Public, nil)
@@ -161,72 +160,27 @@ func Auth(datas ...string) *Response {
 			break
 		}
 	case "email":
-		memCode := vserver.GetCache("recoveryCode-"+authID, false, nil)
+		memCode := GetCache("recoveryCode-"+authID, false, nil)
 		if code != fmt.Sprintf("%v", memCode) {
 			verifyErr = errors.New("selfCrypto email verify failed")
 			break
 		} else {
-			vserver.GetCache(authID, true, nil)
+			GetCache(authID, true, nil)
 		}
 
-		pushID := fmt.Sprintf("%v", vserver.GetCache("pushID-"+authID, true, nil))
+		pushID := fmt.Sprintf("%v", GetCache("pushID-"+authID, true, nil))
 		resetUser, err := auser.Reset(authID, pushID, authParams1, authParams2)
 		if err != nil {
-			return wasmResponse(nil, WebError(err, ""))
+			return wasmResponse(nil, rsweb.WebError(err, ""))
 		}
-		retMap["qrcode"], _ = resetUser.GetQrcode(authID)
-		responseData = retMap
+		vWorker["qrcode"], _ = resetUser.GetQrcode(authID)
+		responseData = vWorker
 	default:
 		return wasmResponse(nil, c_Error_InvalidParams)
 	}
 	if verifyErr != nil {
-		return wasmResponse(nil, WebError(verifyErr, "selfCrypto verify failed"))
+		return wasmResponse(nil, rsweb.WebError(verifyErr, "selfCrypto verify failed"))
 	}
 
 	return wasmResponse(responseData, "")
-}
-
-// ===================================help function=====================================
-func GetRandomInt(max *big.Int) (int, error) {
-	if max == nil {
-		seed := "0123456789"
-		alphanum := seed + fmt.Sprintf("%v", time.Now().UnixNano())
-		max = big.NewInt(int64(len(alphanum)))
-	}
-	vrand, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		return 0, err
-	}
-	return int(vrand.Int64()), nil
-}
-
-func GetRandom(n int, isNO bool) string {
-	seed := "0123456789"
-	if !isNO {
-		seed = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	}
-	alphanum := seed + fmt.Sprintf("%v", time.Now().UnixNano())
-	buffer := make([]byte, n)
-	max := big.NewInt(int64(len(alphanum)))
-
-	for i := 0; i < n; i++ {
-		index, err := GetRandomInt(max)
-		if err != nil {
-			return ""
-		}
-
-		buffer[i] = alphanum[index]
-	}
-	return string(buffer)
-}
-
-func WebError(err error, webErr string) string {
-	logid := time.Now().UnixNano()
-	if webErr == "" {
-		webErr = "system processing exception"
-	}
-	if err != nil {
-		rslog.Errorf("%v-%s", logid, err.Error())
-	}
-	return fmt.Sprintf("%v-%s", logid, webErr)
 }

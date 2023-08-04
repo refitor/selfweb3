@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/refitor/rslog"
 )
@@ -194,4 +195,15 @@ func WebDecryptParams(r *http.Request, decryptFunc func(s string, v *url.Values)
 		}
 	}
 	return ret
+}
+
+func WebError(err error, webErr string) string {
+	logid := time.Now().UnixNano()
+	if webErr == "" {
+		webErr = "system processing exception"
+	}
+	if err != nil {
+		rslog.Errorf("%v-%s", logid, err.Error())
+	}
+	return fmt.Sprintf("%v-%s", logid, webErr)
 }

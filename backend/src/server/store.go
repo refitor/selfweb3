@@ -71,7 +71,7 @@ func (p *db_bolt) DBPut(name, k string, v interface{}) error {
 	}
 }
 
-func (p *db_bolt) DBRange(name string, f func(k string, v interface{}) bool) error {
+func (p *db_bolt) DBRange(name string, f func(k string, v []byte) bool) error {
 	bucket := p.getBucket(name)
 	if bucket == nil {
 		return fmt.Errorf("invalid bucket, name: %s", name)
@@ -89,7 +89,7 @@ func (p *db_bolt) DBRange(name string, f func(k string, v interface{}) bool) err
 	return nil
 }
 
-func (p *db_bolt) DBRangeByPrefix(name, prefix string, f func(k string, v interface{}) bool) error {
+func (p *db_bolt) DBRangeByPrefix(name, prefix string, f func(k string, v []byte) bool) error {
 	bucket := p.getBucket(name)
 	if bucket == nil {
 		return fmt.Errorf("invalid bucket, name: %s", name)
@@ -108,7 +108,7 @@ func (p *db_bolt) DBRangeByPrefix(name, prefix string, f func(k string, v interf
 	return nil
 }
 
-func (p *db_bolt) DBGet(name, k string) (ret interface{}, err error) {
+func (p *db_bolt) DBGet(name, k string) (ret []byte, err error) {
 	bucket := p.getBucket(name)
 	if bucket == nil {
 		return nil, fmt.Errorf("invalid bucket, name: %s", name)

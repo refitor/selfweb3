@@ -34,11 +34,13 @@ func (p rsFS) Open(name string) (http.File, error) {
 	return nil, errors.New("permission denied")
 }
 
-func Init(webPath string, fs embed.FS, routerFuncList ...func(*httprouter.Router)) *httprouter.Router {
+func Init(webPath string, fs *embed.FS, routerFuncList ...func(*httprouter.Router)) *httprouter.Router {
 	router := httprouter.New()
 
-	if webPath != "" {
-		router.NotFound = http.FileServer(&rsFS{fs, webPath})
+	if fs != nil {
+		router.NotFound = http.FileServer(&rsFS{*fs, webPath})
+	} else {
+		router.NotFound = http.FileServer(http.Dir(webPath))
 	}
 
 	for _, routerFunc := range routerFuncList {
@@ -96,7 +98,7 @@ func newRateLimite() negroni.Handler {
 
 func newCors(allowCredentials bool, allowOrigins ...string) negroni.Handler {
 	return cors.New(cors.Options{
-		AllowedOrigins: allowOrigins,
+		AllowedOrigins:   allowOrigins,
 		AllowCredentials: allowCredentials,
 	})
 }
