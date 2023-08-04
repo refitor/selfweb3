@@ -53,7 +53,7 @@ type Worker struct {
 }
 
 func (p *Worker) Init() {
-	rslog.SetLevel("info")
+	rslog.SetLevel("debug")
 
 	// db
 	db, err := boltDBInit(*DBPath)

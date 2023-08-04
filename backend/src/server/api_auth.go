@@ -10,6 +10,11 @@ func AuthInitRouter(router *httprouter.Router) {
 	router.HandlerFunc(http.MethodGet, "/api/datas/load", webDatasLoad)
 	router.HandlerFunc(http.MethodPost, "/api/datas/store", webDatasStore)
 	router.HandlerFunc(http.MethodPost, "/api/user/recover", webUserRecover)
+
+	router.HandlerFunc(http.MethodPost, "/api/user/begin/login", WebAuthnBeginLogin)
+	router.HandlerFunc(http.MethodPost, "/api/user/finish/login", WebAuthnFinishLogin)
+	router.HandlerFunc(http.MethodPost, "/api/user/begin/register", WebAuthnBeginRegister)
+	router.HandlerFunc(http.MethodPost, "/api/user/finish/register", WebAuthnFinishRegister)
 }
 
 // Post: /api/datas/store

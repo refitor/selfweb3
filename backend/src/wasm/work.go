@@ -28,7 +28,7 @@ type Worker struct {
 
 func Init() *Worker {
 	vWorker = newWorker()
-	rslog.SetLevel("info")
+	rslog.SetLevel("debug")
 	return vWorker
 }
 

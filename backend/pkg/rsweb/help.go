@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	C_Data_Pass           = "pass"
-	C_Data_Pending        = "pending"
-	C_Data_Success        = "successed"
-	C_Error_Denied        = "permission denied"
-	C_Error_InvalidParams = "invalid request params"
+	C_Data_Pass               = "pass"
+	C_Data_Pending            = "pending"
+	C_Data_Success            = "successed"
+	C_Error_Denied            = "permission denied"
+	C_Error_InvalidParams     = "invalid request params"
+	C_Error_SystenmExeception = "system processing exception"
 )
 
 var EnableLog = true

@@ -8,7 +8,7 @@ import (
 
 var (
 	vCache sync.Map
-	vStore sync.Map
+	vStore = make(map[string]any, 0)
 )
 
 func SaveToStoreage(data any, bFormat bool) error {

@@ -9,7 +9,7 @@ export default defineConfig({
   alias: {
     "@": path.resolve(__dirname, "src"),
   },
-  base: '/app/',
+  // base: '/app/',
   publicDir:'public',
   optimizeDeps: { // 👈 optimizedeps
     esbuildOptions: {
@@ -39,6 +39,11 @@ export default defineConfig({
             drop_console: true,
             drop_debugger: true,
         },
+    },
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3157'
     },
   },
   plugins: [

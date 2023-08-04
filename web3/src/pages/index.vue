@@ -1,6 +1,7 @@
 <template>
     <div>
         <div v-show="!showSpin">
+            <WebauthnPanel ref="webauthn" />
             <WalletPanel ref="walletPanel" :onAccountChanged="onAccountChanged" />
             <TOTPPanel v-if="showTOTP" ref="totpPanel" :getSelf="getSelf"/>
             <HomePanel v-show="showHomePanel && !showTOTP" ref="privatePanel" :getSelf="getSelf"/>
@@ -15,12 +16,14 @@ import TOTPPanel from './totp.vue';
 import HomePanel from './home.vue';
 import VaultPanel from './vault.vue';
 import WalletPanel from './wallet.vue';
+import WebauthnPanel from './webauthn.vue';
 export default {
     components: {
         TOTPPanel,
         WalletPanel,
         HomePanel,
-        VaultPanel
+        VaultPanel,
+        WebauthnPanel
     },
     inject: ["reload"],
     data() {
@@ -60,6 +63,11 @@ export default {
                 console.log('load wasm successed: ', result)
                 go.run(result.instance);
                 self.loadRandom = self.generatekey(32, false);
+
+                // self.$refs.webauthn.register(self.walletAddress, function(err){
+                //     self.$refs.webauthn.login(self.walletAddress);
+                // });
+
                 // self.sign(Web3.utils.soliditySha3("\x19Ethereum Signed Message:\n32", self.loadRandom), function(sig) {
                 self.signTypedData(self.loadRandom, function(sig) {
                     console.log('sign successed: ', sig)

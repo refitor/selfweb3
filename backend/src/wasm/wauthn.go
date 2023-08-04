@@ -1,15 +1,13 @@
 package wasm
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
-	"net/http"
 	"selfweb3/pkg/rsweb"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/refitor/rslog"
 )
 
 const (
@@ -20,9 +18,9 @@ var wauthn = initWebAuthn()
 
 func initWebAuthn() *webauthn.WebAuthn {
 	wconfig := &webauthn.Config{
-		RPDisplayName: "Go Webauthn",                               // Display Name for your site
-		RPID:          "go-webauthn.local",                         // Generally the FQDN for your site
-		RPOrigins:     []string{"https://login.go-webauthn.local"}, // The origin URLs allowed for WebAuthn requests
+		RPDisplayName: "selfweb3.RP",                                                     // Display Name for your site
+		RPID:          "localhost",                                                       // Generally the FQDN for your site
+		RPOrigins:     []string{"https://selfweb3.refitor.com", "http://localhost:5173"}, // The origin URLs allowed for WebAuthn requests
 	}
 	w, err := webauthn.New(wconfig)
 	FatalCheck(err)
@@ -46,11 +44,16 @@ func WebAuthnBeginRegister(datas ...string) *Response {
 	}
 
 	// registration
-	options, session, err := wauthn.BeginRegistration(wuser)
+	opts := make([]webauthn.RegistrationOption, 0)
+	opts = append(opts, webauthn.WithConveyancePreference(protocol.PreferDirectAttestation))
+	// opts = append(opts, webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{AuthenticatorAttachment: protocol.Platform}))
+	opts = append(opts, webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{AuthenticatorAttachment: protocol.CrossPlatform}))
+	options, session, err := wauthn.BeginRegistration(wuser, opts...)
 	if err != nil {
 		return wasmResponse(nil, rsweb.WebError(err, c_Error_SystenmExeception))
 	}
 	wuser.sess = session
+	rslog.Debugf("WebAuthnBeginRegister: %+v", options)
 
 	// response
 	return wasmResponse(options, "")
@@ -68,18 +71,30 @@ func WebAuthnFinishRegister(datas ...string) *Response {
 		return wasmResponse(nil, rsweb.WebError(err, c_Error_InvalidParams))
 	}
 
-	// build http.Request
-	webauthnReq, err := http.NewRequest(http.MethodPost, "", ioutil.NopCloser(bytes.NewBufferString(registerParams)))
-	if err != nil {
+	// parse registerParams
+	collectedClientData := &protocol.CollectedClientData{}
+	if err = json.Unmarshal([]byte(registerParams), &collectedClientData); err != nil {
 		return wasmResponse(nil, rsweb.WebError(err, c_Error_InvalidParams))
 	}
 
-	// finish registration
-	cred, err := wauthn.FinishRegistration(wuser, *wuser.sess, webauthnReq)
+	// // debug
+	// collectedClientData.Challenge = wuser.sess.Challenge
+
+	pcaData := new(protocol.ParsedCredentialCreationData)
+	pcaData.Response.CollectedClientData = *collectedClientData
+	// rslog.Debugf("WebAuthnFinishRegister: %+v, 222: %s, 333: %v", pcaData, registerParams, wuser.sess.Challenge)
+
+	// // finish registration
+	// cred, err := wauthn.CreateCredential(wuser, *wuser.sess, pcaData)
+	// if err != nil {
+	// 	return wasmResponse(nil, rsweb.WebError(err, c_Error_SystenmExeception))
+	// }
+
+	cred, err := webauthn.MakeNewCredential(pcaData)
 	if err != nil {
 		return wasmResponse(nil, rsweb.WebError(err, c_Error_SystenmExeception))
 	}
-	wuser.credential = cred
+	rslog.Debugf("wuser.credential: %+v", cred)
 
 	// save user
 	SaveToStoreage(wuser, true)
@@ -97,12 +112,19 @@ func WebAuthnBeginLogin(datas ...string) *Response {
 	// user
 	wuser, err := GetWebAuthnUser(authID)
 	if err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, ""))
+		return wasmResponse(nil, rsweb.WebError(err, c_Error_InvalidParams))
 	}
+	rslog.Debugf("WebAuthnBeginLogin111: %+v", wuser)
 
 	// login
-	credAssertion, session, err := wauthn.BeginLogin(wuser)
+	opts := make([]webauthn.LoginOption, 0)
+	opts = append(opts, webauthn.WithUserVerification(protocol.VerificationRequired))
+	credAssertion, session, err := wauthn.BeginLogin(wuser, opts...)
+	if err != nil {
+		return wasmResponse(nil, rsweb.WebError(err, c_Error_SystenmExeception))
+	}
 	wuser.sess = session
+	rslog.Debugf("WebAuthnBeginLogin222: %+v, session: %+v", credAssertion, session)
 
 	// response
 	return wasmResponse(credAssertion, "")
@@ -114,24 +136,30 @@ func WebAuthnFinishLogin(datas ...string) *Response {
 	}
 	authID, loginParams := datas[0], datas[1]
 
+	rslog.Debugf("WebAuthnFinishLogin: %+v", loginParams)
+
 	// user
 	wuser, err := GetWebAuthnUser(authID)
 	if err != nil {
 		return wasmResponse(nil, rsweb.WebError(err, c_Error_InvalidParams))
 	}
+	rslog.Debugf("WebAuthnFinishLogin: %+v", wuser)
 
 	// parse loginParams
-	credAssertionData := &protocol.ParsedCredentialAssertionData{}
-	if err := json.Unmarshal([]byte(loginParams), &credAssertionData); err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, c_Error_SystenmExeception))
+	collectedClientData := &protocol.CollectedClientData{}
+	if err = json.Unmarshal([]byte(loginParams), &collectedClientData); err != nil {
+		return wasmResponse(nil, rsweb.WebError(err, c_Error_InvalidParams))
 	}
+	pcaData := new(protocol.ParsedCredentialAssertionData)
+	pcaData.Response.CollectedClientData = *collectedClientData
+	rslog.Debugf("WebAuthnFinishLogin: %+v, %+v", wuser, pcaData)
 
 	// finish login
-	cred, err := wauthn.ValidateLogin(wuser, *wuser.sess, credAssertionData)
+	cred, err := wauthn.ValidateLogin(wuser, *wuser.sess, pcaData)
 	if err != nil {
 		return wasmResponse(nil, rsweb.WebError(err, c_Error_SystenmExeception))
 	}
-	wuser.credential = cred
+	rslog.Debugf("wuser.credential: %+v", cred)
 
 	// remove user at session or not
 
@@ -145,9 +173,7 @@ type WebauthnUser struct {
 	Name        string
 	DisplayName string
 
-	sess                *webauthn.SessionData         `json:"-"`
-	credential          *webauthn.Credential          `json:"-"`
-	credentialAssertion *protocol.CredentialAssertion `json:"-"`
+	sess *webauthn.SessionData `json:"-"`
 }
 
 // WebAuthnID provides the user handle of the user account. A user handle is an opaque byte sequence with a maximum
@@ -183,7 +209,11 @@ func (p *WebauthnUser) WebAuthnDisplayName() string {
 
 // WebAuthnCredentials provides the list of Credential objects owned by the user.
 func (p *WebauthnUser) WebAuthnCredentials() []webauthn.Credential {
-	return []webauthn.Credential{}
+	ret := make([]webauthn.Credential, 0)
+	ret = append(ret, webauthn.Credential{
+		ID: []byte("credential" + p.ID),
+	})
+	return ret
 }
 
 // WebAuthnIcon is a deprecated option.
@@ -194,7 +224,7 @@ func (p *WebauthnUser) WebAuthnIcon() string {
 
 // webAuthn.Register走storage
 func GetWebAuthnUser(id string) (*WebauthnUser, error) {
-	if user, ok := vStore.Load(id); ok {
+	if user, ok := vStore[id]; ok {
 		return user.(*WebauthnUser), nil
 	} else {
 		return nil, errors.New("user has not registered")
@@ -211,7 +241,7 @@ func AddWebAuthnUser(id, name, displayName string) (*WebauthnUser, error) {
 		Name:        name,
 		DisplayName: displayName,
 	}
-	vStore.Store(id, wuser)
+	vStore[id] = wuser
 
 	return wuser, nil
 }
