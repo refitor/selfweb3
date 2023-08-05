@@ -33,7 +33,7 @@ type AuthUser struct {
 	Web3Public  *ecdsa.PublicKey
 	SelfPrivate *ecdsa.PrivateKey
 
-	WebauthnUser *WebauthnUser
+	// WebauthnUser *WebauthnUser
 }
 
 // webAuthn.Login和web.Load走session

@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"selfweb3/pkg/rsauth"
 	"selfweb3/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/gorilla/sessions"
 	"github.com/refitor/rslog"
 )
 
@@ -22,6 +24,9 @@ const (
 	C_date_time = "2006-01-02 15:04:05"
 
 	C_Url_host = "https://selfrscrypto.refitor.com"
+
+	c_Session_ID   = "selfweb3-session"
+	c_Session_User = "selfweb3-user"
 )
 
 var vWorker *Worker
@@ -40,7 +45,7 @@ func Run(ctx context.Context, fs *embed.FS) {
 	defer vWorker.UnInit()
 
 	// run
-	go rsweb.Run(ctx, *webPort, rsweb.Init(*webPath, fs, AuthInitRouter), false, "http://localhost:8000", "http://localhost:3157", "https://*.refitor.com")
+	go rsweb.Run(ctx, *webPort, rsweb.Init(*webPath, fs, RouterInit), false, "http://localhost:8000", "http://localhost:3157", "https://*.refitor.com")
 }
 
 type Worker struct {
@@ -50,6 +55,8 @@ type Worker struct {
 	memvar  sync.Map
 	public  *ecdsa.PublicKey
 	private *ecdsa.PrivateKey
+
+	session *sessions.CookieStore
 }
 
 func (p *Worker) Init() {
@@ -60,6 +67,10 @@ func (p *Worker) Init() {
 	FatalCheck(err)
 	vWorker.db = db
 	FatalCheck(vWorker.db.DBCreate("default"))
+
+	// session
+	vWorker.session = sessions.NewCookieStore([]byte(fmt.Sprintf("%v", time.Now().UnixNano())))
+	vWorker.session.MaxAge(3600)
 
 	rsauth.InitEmail("smtp.126.com:465", "refitor@gmail.com", "xxxxxxxxxxxxx")
 }

@@ -17,11 +17,11 @@ func main() {
 	js.Global().Set("Register", js.FuncOf(wrapWasmFunc(wasm.Register)))
 	js.Global().Set("Recover", js.FuncOf(wrapWasmFunc(wasm.Recover)))
 
-	// webAuthn
-	js.Global().Set("BeginRegister", js.FuncOf(wrapWasmFunc(wasm.WebAuthnBeginRegister)))
-	js.Global().Set("FinishRegister", js.FuncOf(wrapWasmFunc(wasm.WebAuthnFinishRegister)))
-	js.Global().Set("BeginLogin", js.FuncOf(wrapWasmFunc(wasm.WebAuthnBeginLogin)))
-	js.Global().Set("FinishLogin", js.FuncOf(wrapWasmFunc(wasm.WebAuthnFinishLogin)))
+	// // webAuthn
+	// js.Global().Set("BeginRegister", js.FuncOf(wrapWasmFunc(wasm.WebAuthnBeginRegister)))
+	// js.Global().Set("FinishRegister", js.FuncOf(wrapWasmFunc(wasm.WebAuthnFinishRegister)))
+	// js.Global().Set("BeginLogin", js.FuncOf(wrapWasmFunc(wasm.WebAuthnBeginLogin)))
+	// js.Global().Set("FinishLogin", js.FuncOf(wrapWasmFunc(wasm.WebAuthnFinishLogin)))
 
 	select {}
 }
