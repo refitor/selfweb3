@@ -64,8 +64,8 @@ export default {
                 go.run(result.instance);
                 self.loadRandom = self.generatekey(32, false);
 
-                // self.$refs.webauthn.register(self.walletAddress, function(err){
-                //     self.$refs.webauthn.login(self.walletAddress);
+                // self.$refs.webauthn.webRegister("demo", function(err){
+                //     self.$refs.webauthn.webLogin("demo");
                 // });
 
                 // self.sign(Web3.utils.soliditySha3("\x19Ethereum Signed Message:\n32", self.loadRandom), function(sig) {
