@@ -6,9 +6,9 @@ cd ./backend/app/wasm
 # go mod tidy
 rm ../../../web3/public/selfweb3.wasm
 GOOS=js GOARCH=wasm go build -ldflags="-w -s" -o ../../../web3/public/selfweb3.wasm
-cd ../
+cd ../../../
 
 # # build web
-# cd ./web3
-# yarn install
-# yarn run build
+cd ./web3
+yarn install
+yarn run build
