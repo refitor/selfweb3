@@ -75,131 +75,113 @@ export default {
         },
         webRegister(walletAddress, callback) {
             let self = this;
-            let name = walletAddress; //"wallet-" + walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
-            console.log('before BeginRegister: ', walletAddress, name);
-        
-            self.doRegister(walletAddress, name)
-			.then(res => alert('This authenticator has been registered'))
-			.catch(err => {
-				console.error(err)
-				alert('Failed to register: ' + err);
+            let name = walletAddress;
+            // let name = walletAddress; //"wallet-" + walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
+            let formdata = new FormData();
+            formdata.append('id', walletAddress);
+            formdata.append('name', name);
+            fetch('/api/user/begin/register', {
+				method: 'POST',
+                body: formdata,
 			})
-			.then(() => {
-				if (callback !== undefined && callback !== null) callback();
-			});
+			.then(self._checkStatus(200))
+            .then(response => response.json())
+			.then(response => {
+                console.log("+++++++++++++", response)
+                let credentialCreationOptions = response["Data"];
+                credentialCreationOptions.publicKey.challenge = self.bufferDecode(credentialCreationOptions.publicKey.challenge);
+                credentialCreationOptions.publicKey.user.id = self.bufferDecode(credentialCreationOptions.publicKey.user.id);
+                if (credentialCreationOptions.publicKey.excludeCredentials) {
+                    for (var i = 0; i < credentialCreationOptions.publicKey.excludeCredentials.length; i++) {
+                    credentialCreationOptions.publicKey.excludeCredentials[i].id = self.bufferDecode(credentialCreationOptions.publicKey.excludeCredentials[i].id);
+                    }
+                }
+                console.log('=================111: ', credentialCreationOptions)
+				return credentialCreationOptions;
+			})
+			.then(credentialCreationOptions => navigator.credentials.create(credentialCreationOptions))
+			.then(credential => {
+                console.log(credential)
+                let attestationObject = credential.response.attestationObject;
+                let clientDataJSON = credential.response.clientDataJSON;
+                let rawId = credential.rawId;
+
+                console.log('=================222: ', credential, "++++", clientDataJSON, attestationObject)
+				fetch('/api/user/finish/register?name=' + name, {
+					method: 'POST',
+					headers: {
+						'Accept': 'application/json',
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+                        id: credential.id,
+                        rawId: self.bufferEncode(rawId),
+                        type: credential.type,
+                        response: {
+                            attestationObject: self.bufferEncode(attestationObject),
+                            clientDataJSON: self.bufferEncode(clientDataJSON),
+                        },
+                    }),
+				})
+                .then(self._checkStatus(200))
+                .then(response => {
+                    if (callback !== undefined && callback !== null) callback();
+                })
+			})
         },
         webLogin(walletAddress, callback) {
             let self = this;
-            let name = "wallet-" + walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
-
-            self.doLogin(walletAddress, name)
-			.then(res => res.json())
-			.then(res => alert('You have been logged in to ' + res.name))
-			.catch(err => {
-				console.error(err)
-				alert('Failed to login: ' + err);
-			})
-			.then(() => {
-                if (callback !== undefined && callback !== null) callback();
-			});
-        },
-        doRegister(id, name) {
-            let self = this;
-            let formdata = new FormData();
-            formdata.append('id', id);
-            formdata.append('name', name);
-            return fetch('/api/user/begin/register', {
-				method: 'POST',
-                body: formdata,
-			})
-			.then(self._checkStatus(200))
-			.then(res => res.json())
-			.then(res => {
-				res.publicKey.challenge = self._decodeBuffer(res.publicKey.challenge);
-				res.publicKey.user.id = self._decodeBuffer(res.publicKey.user.id);
-				if (res.publicKey.excludeCredentials) {
-					for (var i = 0; i < res.publicKey.excludeCredentials.length; i++) {
-						res.publicKey.excludeCredentials[i].id = self._decodeBuffer(res.publicKey.excludeCredentials[i].id);
-					}
-				}
-                console.log('=================111: ', res)
-				return res;
-			})
-			.then(res => navigator.credentials.create(res))
-			.then(credential => {
-                const utf8Decoder = new TextDecoder('utf-8');
-                const decodedClientData = JSON.parse(utf8Decoder.decode(credential.response.clientDataJSON));
-                const decodedAttestationObj = CBOR.decode(credential.response.attestationObject);
-
-                const bodyBuf = JSON.stringify({
-                    id: credential.id,
-                    rawId: self._encodeBuffer(credential.rawId),
-                    response: {
-                        attestationObject: self._encodeBuffer(credential.response.attestationObject),
-						clientDataJSON: self._encodeBuffer(credential.response.clientDataJSON)
-                    },
-                    type: credential.type
-                })
-
-
-                console.log('=================222: ', credential, "---", bodyBuf, "++++", decodedClientData, decodedAttestationObj)
-				return fetch('/api/user/finish/register?name=' + name, {
-					method: 'POST',
-					headers: {
-						'Accept': 'application/json',
-						'Content-Type': 'application/json'
-					},
-					body: bodyBuf,
-				})
-			})
-			.then(self._checkStatus(201));
-        },
-        doLogin(id, name) {
-            let self = this;
             let formdata = new FormData();
             // formdata.append('id', id);
-            formdata.append('name', name);
-            return fetch('/api/user/begin/login', {
+            formdata.append('name', walletAddress);
+            fetch('/api/user/begin/login', {
 				method: 'POST',
                 body: formdata,
 			})
 			.then(self._checkStatus(200))
-			.then(res => res.json())
-			.then(res => {
-				res.publicKey.challenge = self._decodeBuffer(res.publicKey.challenge);
-				if (res.publicKey.allowCredentials) {
-					for (let i = 0; i < res.publicKey.allowCredentials.length; i++) {
-						res.publicKey.allowCredentials[i].id = self._decodeBuffer(res.publicKey.allowCredentials[i].id);
-					}
-				}
-                console.log('=================333: ', res)
-				return res;
+            .then(response => response.json())
+            .then(response => {
+                let credentialRequestOptions = response["Data"];
+                console.log('start=================333: ', credentialRequestOptions)
+                credentialRequestOptions.publicKey.challenge = self.bufferDecode(credentialRequestOptions.publicKey.challenge);
+                credentialRequestOptions.publicKey.allowCredentials.forEach(function (listItem) {
+                    listItem.id = self.bufferDecode(listItem.id)
+                });
+                console.log('=================333: ', credentialRequestOptions)
+				return credentialRequestOptions;
 			})
-			.then(res => navigator.credentials.get(res))
-			.then(credential => {
-                const bodyBuf = JSON.stringify({
-                    id: credential.id,
-						rawId: self._encodeBuffer(credential.rawId),
-						response: {
-							clientDataJSON: self._encodeBuffer(credential.response.clientDataJSON),
-							authenticatorData: self._encodeBuffer(credential.response.authenticatorData),
-							signature: self._encodeBuffer(credential.response.signature),
-							userHandle: self._encodeBuffer(credential.response.userHandle),
-						},
-						type: credential.type
-                })
+			.then(credentialRequestOptions => navigator.credentials.get({publicKey: credentialRequestOptions.publicKey}))
+			.then(assertion => {
+                let authData = assertion.response.authenticatorData;
+                let clientDataJSON = assertion.response.clientDataJSON;
+                let rawId = assertion.rawId;
+                let sig = assertion.response.signature;
+                let userHandle = assertion.response.userHandle;
 
-                console.log('=================444: ', credential, bodyBuf)
-				return fetch('/api/user/finish/login?name=' + name, {
+                console.log('=================444: ', assertion, credential)
+				fetch('/api/user/finish/login?name=' + name, {
 					method: 'POST',
 					headers: {
 						'Accept': 'application/json',
 						'Content-Type': 'application/json'
 					},
-					body: bodyBuf,
+					body: JSON.stringify({
+                        id: assertion.id,
+                        rawId: bufferEncode(rawId),
+                        type: assertion.type,
+                        response: {
+                            authenticatorData: self.bufferEncode(authData),
+                            clientDataJSON: self.bufferEncode(clientDataJSON),
+                            signature: self.bufferEncode(sig),
+                            userHandle: self.bufferEncode(userHandle),
+                        },
+                    }),
 				})
+                .then(self._checkStatus(200))
+                .then(response => {
+                    if (callback !== undefined && callback !== null) callback();
+                })
 			})
-			.then(self._checkStatus(200));
         },
         // Decode a base64 string into a Uint8Array.
         _decodeBuffer(value) {
@@ -218,6 +200,17 @@ export default {
                 }
                 throw new Error(res.statusText);
             };
+        },
+        // Base64 to ArrayBuffer
+        bufferDecode(value) {
+            return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+        },
+        // ArrayBuffer to URLBase64
+        bufferEncode(value) {
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(value)))
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=/g, "");;
         }
     }
 }

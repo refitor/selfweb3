@@ -51,14 +51,22 @@ func Init(webPath string, fs *embed.FS, routerFuncList ...func(*httprouter.Route
 	return router
 }
 
-func Run(ctx context.Context, port string, router *httprouter.Router, allowCredentials bool, allowOrigins ...string) {
+/* example:
+
+rsweb.Run(ctx, "8080", func() http.Handler {
 	n := negroni.New()
-	n.Use(newCors(allowCredentials, allowOrigins...))
-	n.UseFunc(newGzip)
-	n.Use(newRateLimite())
-	n.UseFunc(newAPILog)
+	n.Use(rsweb.NewCors(allowCredentials, allowOrigins...))
+	n.UseFunc(rsweb.NewGzip)
+	n.Use(rsweb.NewRateLimite())
+	n.UseFunc(rsweb.NewAPILog)
 	n.UseHandlerFunc(router.ServeHTTP)
-	server := &http.Server{Addr: fmt.Sprintf(":%v", port), Handler: n}
+	return n
+})
+
+*/
+// func Run(ctx context.Context, port string, router *httprouter.Router, allowCredentials bool, allowOrigins ...string) {
+func Run(ctx context.Context, port string, handler func() http.Handler) {
+	server := &http.Server{Addr: fmt.Sprintf(":%v", port), Handler: handler()}
 
 	rslog.Infof("run web server successed, listen: %v", port)
 	go func() {
@@ -70,7 +78,7 @@ func Run(ctx context.Context, port string, router *httprouter.Router, allowCrede
 	server.Shutdown(ctx)
 }
 
-func newAPILog(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func NewAPILog(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	if !strings.HasPrefix(r.URL.Path, "/api") {
 		next(rw, r)
 		return
@@ -81,7 +89,7 @@ func newAPILog(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	rslog.Infof("%s %s, time: %v ms", r.Method, r.RequestURI, time.Since(ts).Milliseconds())
 }
 
-func newGzip(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+func NewGzip(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	if strings.HasPrefix(r.URL.Path, "/api") {
 		next(rw, r)
 		return
@@ -89,14 +97,14 @@ func newGzip(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	gzip.Gzip(gzip.DefaultCompression).ServeHTTP(rw, r, next)
 }
 
-func newRateLimite() negroni.Handler {
+func NewRateLimite() negroni.Handler {
 	limiter := tollbooth.NewLimiter(1, &limiter2.ExpirableOptions{DefaultExpirationTTL: time.Hour, ExpireJobInterval: time.Second})
 	limiter.SetIPLookups([]string{"RemoteAddr", "X-Forwarded-For", "X-Real-IP"}).SetMethods([]string{"GET", "POST"})
 	limiter.SetMessage("You have reached maximum request limit.")
 	return tollbooth_negroni.LimitHandler(limiter)
 }
 
-func newCors(allowCredentials bool, allowOrigins ...string) negroni.Handler {
+func NewCors(allowCredentials bool, allowOrigins ...string) negroni.Handler {
 	return cors.New(cors.Options{
 		AllowedOrigins:   allowOrigins,
 		AllowCredentials: allowCredentials,

@@ -64,16 +64,17 @@ export default {
                 go.run(result.instance);
                 self.loadRandom = self.generatekey(32, false);
 
-                // self.$refs.webauthn.webRegister("demo", function(err){
-                //     self.$refs.webauthn.webLogin("demo");
-                // });
+                self.walletAddress = "testDemo"
+                self.$refs.webauthn.webRegister(self.walletAddress, function(err){
+                    self.$refs.webauthn.webLogin(self.walletAddress);
+                });
 
-                // self.sign(Web3.utils.soliditySha3("\x19Ethereum Signed Message:\n32", self.loadRandom), function(sig) {
-                self.signTypedData(self.loadRandom, function(sig) {
-                    console.log('sign successed: ', sig)
-                    self.loadSignature = sig;
-                    self.load();
-                })
+                // // self.sign(Web3.utils.soliditySha3("\x19Ethereum Signed Message:\n32", self.loadRandom), function(sig) {
+                // self.signTypedData(self.loadRandom, function(sig) {
+                //     console.log('sign successed: ', sig)
+                //     self.loadSignature = sig;
+                //     self.load();
+                // })
             })
         },
         onAccountChanged(action, network, address) {

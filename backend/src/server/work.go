@@ -8,15 +8,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
-	"time"
 
 	"selfweb3/pkg/rsauth"
 	"selfweb3/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/gorilla/sessions"
 	"github.com/refitor/rslog"
+	"github.com/urfave/negroni"
 )
 
 // global const
@@ -24,9 +24,6 @@ const (
 	C_date_time = "2006-01-02 15:04:05"
 
 	C_Url_host = "https://selfrscrypto.refitor.com"
-
-	c_Session_ID   = "selfweb3-session"
-	c_Session_User = "selfweb3-user"
 )
 
 var vWorker *Worker
@@ -36,6 +33,7 @@ var (
 	DBPath  = flag.String("dbpath", "./selfweb3.db", "--dbPath=./selfweb3.db")
 	webPort = flag.String("port", "3157", "--port=3157")
 	webPath = flag.String("webpath", "rsweb", "--webpath=rsweb")
+	hostURL = flag.String("hosturl", "http://localhost:5137", "--hosturl=https://example.com")
 )
 
 func Run(ctx context.Context, fs *embed.FS) {
@@ -45,7 +43,16 @@ func Run(ctx context.Context, fs *embed.FS) {
 	defer vWorker.UnInit()
 
 	// run
-	go rsweb.Run(ctx, *webPort, rsweb.Init(*webPath, fs, RouterInit), false, "http://localhost:8000", "http://localhost:3157", "https://*.refitor.com")
+	router := rsweb.Init(*webPath, fs, RouterInit)
+	go rsweb.Run(ctx, *webPort, func() http.Handler {
+		n := negroni.New()
+		n.Use(rsweb.NewCors(false, "http://localhost:5173", "http://localhost:3157", "https://*.refitor.com"))
+		n.UseFunc(rsweb.NewGzip)
+		n.Use(rsweb.NewRateLimite())
+		n.UseFunc(rsweb.NewAPILog)
+		n.UseHandlerFunc(router.ServeHTTP)
+		return n
+	})
 }
 
 type Worker struct {
@@ -55,8 +62,6 @@ type Worker struct {
 	memvar  sync.Map
 	public  *ecdsa.PublicKey
 	private *ecdsa.PrivateKey
-
-	session *sessions.CookieStore
 }
 
 func (p *Worker) Init() {
@@ -66,11 +71,10 @@ func (p *Worker) Init() {
 	db, err := boltDBInit(*DBPath)
 	FatalCheck(err)
 	vWorker.db = db
-	FatalCheck(vWorker.db.DBCreate("default"))
+	db.DBCreate(C_Store_WebauthnUser)
 
-	// session
-	vWorker.session = sessions.NewCookieStore([]byte(fmt.Sprintf("%v", time.Now().UnixNano())))
-	vWorker.session.MaxAge(3600)
+	FatalCheck(InitSession())
+	FatalCheck(InitWebAuthn(*hostURL))
 
 	rsauth.InitEmail("smtp.126.com:465", "refitor@gmail.com", "xxxxxxxxxxxxx")
 }
@@ -87,36 +91,49 @@ func newWorker() *Worker {
 	return s
 }
 
-func (p *Worker) SetVar(key string, val interface{}, bForce bool) error {
+func SetVar(key string, val interface{}, bForce bool) error {
 	if !bForce {
-		if _, ok := p.memvar.Load(key); ok {
+		if _, ok := vWorker.memvar.Load(key); ok {
 			return fmt.Errorf("cache data already exists, key: %v", key)
 		}
 	}
-	p.memvar.Store(key, val)
+	vWorker.memvar.Store(key, val)
 	return nil
 }
 
 // delete: beforeDelleteFunc return true
-func (p *Worker) GetVar(key string, bDelete bool, beforeDelleteFunc func(v interface{}) bool) interface{} {
-	val, _ := p.memvar.Load(key)
-	if beforeDelleteFunc != nil {
-		if beforeDelleteFunc(val) {
-			p.memvar.Delete(key)
+func GetVar(key string, bDelete bool, beforeDeleteFunc func(v interface{}) bool) interface{} {
+	val, _ := vWorker.memvar.Load(key)
+	if beforeDeleteFunc != nil {
+		if beforeDeleteFunc(val) {
+			vWorker.memvar.Delete(key)
 		}
 	} else if bDelete {
-		p.memvar.Delete(key)
+		vWorker.memvar.Delete(key)
 	}
 	return val
 }
 
-func (p *Worker) SetConf(key, val string) {
-	p.config.Store(key, val)
+func SetConf(key, val string) {
+	vWorker.config.Store(key, val)
 }
 
-func (p *Worker) GetConf(key string) string {
-	val, _ := p.config.Load(key)
+func GetConf(key string) string {
+	val, _ := vWorker.config.Load(key)
 	return fmt.Sprintf("%v", val)
+}
+
+func GetCache(dbName string, key any) (any, bool) {
+	v, ok := vWorker.cache.Load(key)
+	if !ok {
+		_, err := vWorker.db.DBGet(dbName, fmt.Sprintf("%v", key))
+		return nil, err == nil
+	}
+	return v, true
+}
+
+func SetCache(key, val any) {
+	vWorker.cache.Store(key, val)
 }
 
 func FatalCheck(err error) {
@@ -125,18 +142,39 @@ func FatalCheck(err error) {
 	}
 }
 
-func (p *Worker) SaveToDB(name string) (retErr error) {
-	p.cache.Range(func(key, value any) bool {
-		abuf, err := json.Marshal(value)
+func LoadFromDB(dbName, key string, ptrObject any) error {
+	if buf, err := vWorker.db.DBGet(dbName, key); err == nil {
+		return json.Unmarshal(buf, &ptrObject)
+	} else {
+		return err
+	}
+}
+
+func SaveToDB(dbName string, cacheKey any) (retErr error) {
+	storeFunc := func(key, val any) error {
+		abuf, err := json.Marshal(val)
 		if err != nil {
-			retErr = err
-			return false
+			return err
 		}
-		if err := vWorker.db.DBPut(name, fmt.Sprintf("%v", key), abuf); err != nil {
-			retErr = err
-			return false
+		if err := vWorker.db.DBPut(dbName, fmt.Sprintf("%v", key), abuf); err != nil {
+			return err
 		}
-		return true
-	})
+		return nil
+	}
+	if cacheKey == "" {
+		vWorker.cache.Range(func(key, value any) bool {
+			if err := storeFunc(key, value); err != nil {
+				rslog.Errorf("SaveToDB failed, dbName: %s, key: %v, val: %v", dbName, key, value)
+				return false
+			}
+			return true
+		})
+	} else {
+		cacheVal, _ := vWorker.cache.Load(cacheKey)
+		if cacheVal == nil {
+			return fmt.Errorf("SaveToDB failed, dbName: %s, key: %v", dbName, cacheKey)
+		}
+		return storeFunc(cacheKey, cacheVal)
+	}
 	return
 }

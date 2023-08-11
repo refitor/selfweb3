@@ -9,7 +9,7 @@ export default defineConfig({
   alias: {
     "@": path.resolve(__dirname, "src"),
   },
-  base: '/app/',
+  // base: '/app/',
   publicDir:'public',
   optimizeDeps: { // 👈 optimizedeps
     esbuildOptions: {
