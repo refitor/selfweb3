@@ -33,7 +33,7 @@ var (
 	DBPath  = flag.String("dbpath", "./selfweb3.db", "--dbPath=./selfweb3.db")
 	webPort = flag.String("port", "3157", "--port=3157")
 	webPath = flag.String("webpath", "rsweb", "--webpath=rsweb")
-	hostURL = flag.String("hosturl", "http://localhost:5137", "--hosturl=https://example.com")
+	hostURL = flag.String("hosturl", "http://localhost:5173", "--hosturl=https://example.com")
 )
 
 func Run(ctx context.Context, fs *embed.FS) {
@@ -56,7 +56,6 @@ func Run(ctx context.Context, fs *embed.FS) {
 }
 
 type Worker struct {
-	db      *db_bolt
 	cache   sync.Map
 	config  sync.Map
 	memvar  sync.Map
@@ -68,13 +67,44 @@ func (p *Worker) Init() {
 	rslog.SetLevel("debug")
 
 	// db
-	db, err := boltDBInit(*DBPath)
-	FatalCheck(err)
-	vWorker.db = db
-	db.DBCreate(C_Store_WebauthnUser)
-
 	FatalCheck(InitSession())
+	FatalCheck(InitStore(*DBPath))
 	FatalCheck(InitWebAuthn(*hostURL))
+
+	CreateDB(C_Store_User)
+
+	// user
+	UserSaveToStore = func(key string, val any) error {
+		return SaveToDB(C_Store_User, key, val)
+	}
+	UserGetFromStore = func(key string, ptrObject any) error {
+		buf, err := g_db.DBGet(C_Store_User, key)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(buf, ptrObject)
+	}
+
+	// wabauthn
+	// WebauthnSaveToStore = func(key string, val any) error {
+	// 	user, err := CreateUser(key, val)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	return SaveToDB(C_Store_User, key, user)
+	// }
+	WebauthnGetFromStore = func(key string, ptrObject any) error {
+		buf, err := g_db.DBGet(C_Store_User, key)
+		if err != nil {
+			return err
+		}
+
+		user := &User{}
+		if err := json.Unmarshal(buf, &user); err != nil {
+			return err
+		}
+		return json.Unmarshal(user.WebauthnUser, ptrObject)
+	}
 
 	rsauth.InitEmail("smtp.126.com:465", "refitor@gmail.com", "xxxxxxxxxxxxx")
 }
@@ -123,13 +153,9 @@ func GetConf(key string) string {
 	return fmt.Sprintf("%v", val)
 }
 
-func GetCache(dbName string, key any) (any, bool) {
-	v, ok := vWorker.cache.Load(key)
-	if !ok {
-		_, err := vWorker.db.DBGet(dbName, fmt.Sprintf("%v", key))
-		return nil, err == nil
-	}
-	return v, true
+func GetCache(key any) any {
+	v, _ := vWorker.cache.Load(key)
+	return v
 }
 
 func SetCache(key, val any) {
@@ -142,21 +168,29 @@ func FatalCheck(err error) {
 	}
 }
 
+func CreateDB(dbName string) error {
+	return g_db.DBCreate(dbName)
+}
+
 func LoadFromDB(dbName, key string, ptrObject any) error {
-	if buf, err := vWorker.db.DBGet(dbName, key); err == nil {
-		return json.Unmarshal(buf, &ptrObject)
+	if buf, err := g_db.DBGet(dbName, key); err == nil {
+		if ptrObject != nil {
+			return json.Unmarshal(buf, ptrObject)
+		} else {
+			return nil
+		}
 	} else {
 		return err
 	}
 }
 
-func SaveToDB(dbName string, cacheKey any) (retErr error) {
+func SaveToDB(dbName string, cacheKey, cacheValue any) (retErr error) {
 	storeFunc := func(key, val any) error {
 		abuf, err := json.Marshal(val)
 		if err != nil {
 			return err
 		}
-		if err := vWorker.db.DBPut(dbName, fmt.Sprintf("%v", key), abuf); err != nil {
+		if err := g_db.DBPut(dbName, fmt.Sprintf("%v", key), abuf); err != nil {
 			return err
 		}
 		return nil
@@ -170,11 +204,7 @@ func SaveToDB(dbName string, cacheKey any) (retErr error) {
 			return true
 		})
 	} else {
-		cacheVal, _ := vWorker.cache.Load(cacheKey)
-		if cacheVal == nil {
-			return fmt.Errorf("SaveToDB failed, dbName: %s, key: %v", dbName, cacheKey)
-		}
-		return storeFunc(cacheKey, cacheVal)
+		return storeFunc(cacheKey, cacheValue)
 	}
 	return
 }

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 
 	"selfweb3/pkg/rsweb"
@@ -12,9 +11,12 @@ import (
 func RouterInit(router *httprouter.Router) {
 	RouterHook(router, http.MethodGet, "/api/datas/load", webDatasLoad, nil)
 	RouterHook(router, http.MethodPost, "/api/datas/store", webDatasStore, nil)
-	RouterHook(router, http.MethodPost, "/api/user/recover", webUserRecover, nil)
 
-	RouterHook(router, http.MethodPost, "/api/user/logout", WebAuthnLogout, UserSessionCheck)
+	// RouterHook(router, http.MethodPost, "/api/user/status", UserStatus, UserSessionCheck)
+	// RouterHook(router, http.MethodPost, "/api/user/logout", UserLogout, UserSessionCheck)
+	// // RouterHook(router, http.MethodPost, "/api/user/recovery", UserRecovery, UserSessionCheck)
+	// // RouterHook(router, http.MethodPost, "/api/user/auth", UserAuth, UserSessionCheck) // totp, email......
+
 	RouterHook(router, http.MethodPost, "/api/user/begin/login", WebAuthnBeginLogin, nil)
 	RouterHook(router, http.MethodPost, "/api/user/finish/login", WebAuthnFinishLogin, nil)
 	RouterHook(router, http.MethodPost, "/api/user/begin/register", WebAuthnBeginRegister, nil)
@@ -33,6 +35,7 @@ func RouterHook(router *httprouter.Router, method string, path string, handleFun
 	})
 }
 
+// ====== datas ======
 // Post: /api/datas/store
 // @request authID wallet address
 // @response backendPublic backend public key
@@ -49,31 +52,41 @@ func webDatasLoad(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// Get: /api/user/recover
-// @request authID wallet address
-// @response backendPublic backend public key
-// @response walletPublic wallet account public key
-func webUserRecover(w http.ResponseWriter, r *http.Request) {
-
+// ====== user ======
+func UserStatus(w http.ResponseWriter, r *http.Request) {
+	rsweb.ResponseOk(w, r, PopFromSession(r, C_Session_User).(*User).WebUser)
 }
 
-func WebAuthnBeginRegister(w http.ResponseWriter, r *http.Request) {
-	authID := rsweb.WebParams(r).Get("id")
+func UserLogout(w http.ResponseWriter, r *http.Request) {
 	username := rsweb.WebParams(r).Get("username")
-	// displayName := rsweb.WebParams(r).Get("displayName")
-	if authID == "" {
+	if username == "" {
 		rsweb.ResponseError(w, r, rsweb.C_Error_InvalidParams)
 		return
 	}
-	if username == "" {
-		username = authID
+	if user := PopFromSession(r, C_Session_User); user != nil && user.(*WebUser).Name != username {
+		rsweb.ResponseError(w, r, rsweb.C_Error_Denied)
+		return
 	}
 
-	response, err, webErr := WauthnBeginRegister(authID, func(key any) (any, bool) {
-		return GetCache(C_Store_WebauthnUser, key)
-	}, func(k, u any) {
-		SetCache(k, u)
-	})
+	// remove from session
+	RemoveSession(w, r, C_Session_User)
+
+	// remove from cache
+	WauthnClean(username)
+
+	rsweb.ResponseOk(w, r, "successed")
+}
+
+// ====== webauthn ======
+func WebAuthnBeginRegister(w http.ResponseWriter, r *http.Request) {
+	username := rsweb.WebParams(r).Get("username")
+	// displayName := rsweb.WebParams(r).Get("displayName")
+	if username == "" {
+		rsweb.ResponseError(w, r, rsweb.C_Error_InvalidParams)
+		return
+	}
+
+	response, err, webErr := WauthnBeginRegister(username)
 	if webErr != "" {
 		rsweb.ResponseError(w, r, webErr)
 		return
@@ -86,15 +99,13 @@ func WebAuthnBeginRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func WebAuthnFinishRegister(w http.ResponseWriter, r *http.Request) {
-	authID := rsweb.WebParams(r).Get("id")
-	if authID == "" {
+	username := rsweb.WebParams(r).Get("username")
+	if username == "" {
 		rsweb.ResponseError(w, r, rsweb.C_Error_InvalidParams)
 		return
 	}
 
-	response, err, webErr := WauthnFinishRegister(authID, r.Body, func(key any) (any, bool) {
-		return GetCache(C_Store_WebauthnUser, key)
-	})
+	wuser, err, webErr := WauthnFinishRegister(username, r.Body, false)
 	if webErr != "" {
 		rsweb.ResponseError(w, r, webErr)
 		return
@@ -103,19 +114,23 @@ func WebAuthnFinishRegister(w http.ResponseWriter, r *http.Request) {
 		rsweb.ResponseError(w, r, rsweb.WebError(err, webErr))
 		return
 	}
-	rsweb.ResponseOk(w, r, response)
+
+	// create user
+	if _, err := CreateUser(username, wuser); err != nil {
+		rsweb.ResponseError(w, r, rsweb.WebError(err, webErr))
+		return
+	}
+	rsweb.ResponseOk(w, r, "successed")
 }
 
 func WebAuthnBeginLogin(w http.ResponseWriter, r *http.Request) {
-	authID := rsweb.WebParams(r).Get("id")
-	if authID == "" {
+	username := rsweb.WebParams(r).Get("username")
+	if username == "" {
 		rsweb.ResponseError(w, r, rsweb.C_Error_InvalidParams)
 		return
 	}
 
-	response, err, webErr := WauthnBeginLogin(authID, func(key any) (any, bool) {
-		return GetCache(C_Store_WebauthnUser, key)
-	})
+	response, err, webErr := WauthnBeginLogin(username)
 	if webErr != "" {
 		rsweb.ResponseError(w, r, webErr)
 		return
@@ -128,15 +143,13 @@ func WebAuthnBeginLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func WebAuthnFinishLogin(w http.ResponseWriter, r *http.Request) {
-	authID := rsweb.WebParams(r).Get("id")
-	if authID == "" {
+	username := rsweb.WebParams(r).Get("username")
+	if username == "" {
 		rsweb.ResponseError(w, r, rsweb.C_Error_InvalidParams)
 		return
 	}
 
-	response, err, webErr := WauthnFinishLogin(authID, r.Body, func(key any) (any, bool) {
-		return GetCache(C_Store_WebauthnUser, key)
-	})
+	response, err, webErr := WauthnFinishLogin(username, r.Body)
 	if webErr != "" {
 		rsweb.ResponseError(w, r, webErr)
 		return
@@ -147,33 +160,7 @@ func WebAuthnFinishLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// push user to session
-	PushToSession(w, r, C_Session_User, authID)
+	PushToSession(w, r, C_Session_User, GetUser(username))
 
 	rsweb.ResponseOk(w, r, response)
-}
-
-func WebAuthnLogout(w http.ResponseWriter, r *http.Request) {
-	authID := rsweb.WebParams(r).Get("id")
-	if authID == "" {
-		rsweb.ResponseError(w, r, rsweb.C_Error_InvalidParams)
-		return
-	}
-	if authID != fmt.Sprintf("%v", PopFromSession(r, C_Session_User)) {
-		rsweb.ResponseError(w, r, rsweb.C_Error_Denied)
-		return
-	}
-
-	// remove from session
-	RemoveSession(w, r, C_Session_User)
-
-	// remove from cache
-	vWorker.cache.Delete(authID)
-
-	// store
-	if err := SaveToDB(C_Store_WebauthnUser, authID); err != nil {
-		rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
-		return
-	}
-
-	rsweb.ResponseOk(w, r, "successed")
 }

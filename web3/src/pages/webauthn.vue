@@ -73,13 +73,11 @@ export default {
                 }
             })
         },
-        webRegister(walletAddress, callback) {
+        webRegister(username, callback) {
             let self = this;
-            let name = walletAddress;
             // let name = walletAddress; //"wallet-" + walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
             let formdata = new FormData();
-            formdata.append('id', walletAddress);
-            formdata.append('name', name);
+            formdata.append('username', username);
             fetch('/api/user/begin/register', {
 				method: 'POST',
                 body: formdata,
@@ -107,7 +105,7 @@ export default {
                 let rawId = credential.rawId;
 
                 console.log('=================222: ', credential, "++++", clientDataJSON, attestationObject)
-				fetch('/api/user/finish/register?name=' + name, {
+				fetch('/api/user/finish/register?username=' + username, {
 					method: 'POST',
 					headers: {
 						'Accept': 'application/json',
@@ -129,11 +127,10 @@ export default {
                 })
 			})
         },
-        webLogin(walletAddress, callback) {
+        webLogin(username, callback) {
             let self = this;
             let formdata = new FormData();
-            // formdata.append('id', id);
-            formdata.append('name', walletAddress);
+            formdata.append('username', username);
             fetch('/api/user/begin/login', {
 				method: 'POST',
                 body: formdata,
@@ -158,8 +155,8 @@ export default {
                 let sig = assertion.response.signature;
                 let userHandle = assertion.response.userHandle;
 
-                console.log('=================444: ', assertion, credential)
-				fetch('/api/user/finish/login?name=' + name, {
+                console.log('=================444: ', assertion)
+				fetch('/api/user/finish/login?username=' + username, {
 					method: 'POST',
 					headers: {
 						'Accept': 'application/json',
@@ -167,7 +164,7 @@ export default {
 					},
 					body: JSON.stringify({
                         id: assertion.id,
-                        rawId: bufferEncode(rawId),
+                        rawId: self.bufferEncode(rawId),
                         type: assertion.type,
                         response: {
                             authenticatorData: self.bufferEncode(authData),

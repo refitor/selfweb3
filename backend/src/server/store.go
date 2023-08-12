@@ -9,6 +9,17 @@ import (
 	"github.com/joyrexus/buckets"
 )
 
+var g_db *db_bolt
+
+func InitStore(path string) error {
+	db, err := boltDBInit(path)
+	if err != nil {
+		return err
+	}
+	g_db = db
+	return nil
+}
+
 type db_bolt struct {
 	db         *buckets.DB
 	bucketsMap sync.Map

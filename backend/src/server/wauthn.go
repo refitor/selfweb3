@@ -5,26 +5,32 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/refitor/rslog"
 )
 
 const (
-	C_Store_WebauthnUser = "webauthn_user"
+	// need user registration
+	c_error_user_invalid = "user.invalid"
 )
 
-var wauthn *webauthn.WebAuthn
-var loadUserFromStore func(string, string, any) error
+var (
+	wcache               sync.Map
+	wauthn               *webauthn.WebAuthn
+	WebauthnSaveToStore  func(key string, val any) error
+	WebauthnGetFromStore func(key string, ptrObject any) error
+)
 
 func InitWebAuthn(rpOrigin string) error {
-	rpID := strings.TrimPrefix(rpOrigin, "http://")
-	rpID = strings.TrimPrefix(rpOrigin, "https://")
-
+	u, _ := url.Parse(rpOrigin)
 	w, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "SelfWeb3",                 // Display Name for your site
-		RPID:          rpID,                       // Generally the domain name for your site
+		RPID:          u.Hostname(),               // Generally the domain name for your site
 		RPOrigin:      rpOrigin,                   // The origin URL for WebAuthn requests
 		RPIcon:        "https://duo.com/logo.png", // Optional icon URL for your site
 	})
@@ -38,7 +44,7 @@ type webauthnUser struct {
 	name        string
 	displayName string
 	credentials []webauthn.Credential
-	SessionData *webauthn.SessionData
+	SessionData *webauthn.SessionData `json:"-"`
 }
 
 // NewUser creates and returns a new User
@@ -108,14 +114,15 @@ func (u webauthnUser) CredentialExcludeList() []protocol.CredentialDescriptor {
 }
 
 // webauthn handler
-func WauthnBeginRegister(username string, userLoad func(key any) (any, bool), userStore func(k, u any)) (interface{}, error, string) {
-	// generate webauthn user
-	if u, ok := userLoad(username); u != nil || ok {
-		return nil, nil, "user has registered"
+func WauthnBeginRegister(username string) (interface{}, error, string) {
+	storeUser := &webauthnUser{}
+	if err := WebauthnGetFromStore(username, storeUser); storeUser != nil && err == nil {
+		return nil, nil, "user registration again and again"
 	}
+
+	// generate webauthn user
 	displayName := strings.Split(username, "@")[0]
 	user := NewWebauthnUser(username, displayName)
-	userStore(username, user)
 
 	// begin registration
 	registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
@@ -130,17 +137,20 @@ func WauthnBeginRegister(username string, userLoad func(key any) (any, bool), us
 	}
 	user.SessionData = sessionData
 
+	// cache
+	wcache.Store(username, user)
+
 	// response
 	return options, nil, ""
 }
 
-func WauthnFinishRegister(username string, bufReader io.Reader, userLoad func(key any) (any, bool)) (interface{}, error, string) {
+func WauthnFinishRegister(username string, bufReader io.Reader, bSave bool) (*webauthnUser, error, string) {
 	// get webauthn user
 	var user *webauthnUser
-	if u, _ := userLoad(username); u == nil {
-		return nil, errors.New("not found user: " + username), ""
+	if cacheUser, _ := wcache.Load(username); cacheUser != nil {
+		user = cacheUser.(*webauthnUser)
 	} else {
-		user = u.(*webauthnUser)
+		return nil, errors.New("not found user: " + username), ""
 	}
 
 	// parse credential
@@ -157,23 +167,26 @@ func WauthnFinishRegister(username string, bufReader io.Reader, userLoad func(ke
 	user.AddCredential(*credential)
 	user.SessionData = nil
 
+	// store
+	if bSave {
+		WebauthnSaveToStore(username, user)
+	}
+
 	// response
-	return "successed", nil, ""
+	return user, nil, ""
 }
 
-func WauthnBeginLogin(username string, userLoad func(key any) (any, bool)) (interface{}, error, string) {
+func WauthnBeginLogin(username string) (interface{}, error, string) {
 	// get webauthn user
 	var user *webauthnUser
-	if u, ok := userLoad(username); u != nil {
-		user = u.(*webauthnUser)
-	} else if ok {
-		// load user to the cache
+	if cacheUser, _ := wcache.Load(username); cacheUser != nil {
+		user = cacheUser.(*webauthnUser)
+	} else {
+		// load user from the storage
 		user = &webauthnUser{}
-		if err := loadUserFromStore(C_Store_WebauthnUser, username, user); err != nil {
-			return nil, err, ""
-		}
-		if u, _ = userLoad(username); u != nil {
-			user = u.(*webauthnUser)
+		if err := WebauthnGetFromStore(username, user); err != nil {
+			rslog.Errorf("GetStoreUser failed, username: %s, detail: %s", username, err.Error())
+			return nil, nil, c_error_user_invalid
 		}
 	}
 	if user == nil {
@@ -187,16 +200,19 @@ func WauthnBeginLogin(username string, userLoad func(key any) (any, bool)) (inte
 	}
 	user.SessionData = sessionData
 
+	// cache
+	wcache.Store(username, user)
+
 	return options, nil, ""
 }
 
-func WauthnFinishLogin(username string, bufReader io.Reader, userLoad func(key any) (any, bool)) (interface{}, error, string) {
+func WauthnFinishLogin(username string, bufReader io.Reader) (interface{}, error, string) {
 	// get webauthn user
 	var user *webauthnUser
-	if u, _ := userLoad(username); u == nil {
-		return nil, errors.New("not found user: " + username), ""
+	if cacheUser, _ := wcache.Load(username); cacheUser != nil {
+		user = cacheUser.(*webauthnUser)
 	} else {
-		user = u.(*webauthnUser)
+		return nil, errors.New("not found user: " + username), ""
 	}
 
 	// parse credential
@@ -214,4 +230,10 @@ func WauthnFinishLogin(username string, bufReader io.Reader, userLoad func(key a
 		return nil, err, ""
 	}
 	return "successed", nil, ""
+}
+
+func WauthnClean(username string) {
+	if u, ok := wcache.Load(username); u != nil && ok {
+		wcache.Delete(username)
+	}
 }
