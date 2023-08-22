@@ -29,7 +29,7 @@ export default {
     data() {
         return {
             connect: false,
-            publicKey: '',
+            wasmPublic: '',
             walletAddress: '',
 
             showTOTP: false,
@@ -41,6 +41,7 @@ export default {
             backendPublicKey: '',
             afterVerifyFunc: null,
 
+            recoverID: '',
             apiPrefix: '',
             loadRandom: '',
             loadSignature: '',
@@ -54,7 +55,7 @@ export default {
         enableSpin(status) {
             this.showSpin = status;
         },
-        init() {
+        webAuthnLogin() {
             let self = this;
             const go = new Go();
             this.enableSpin(true);
@@ -64,17 +65,17 @@ export default {
                 go.run(result.instance);
                 self.loadRandom = self.generatekey(32, false);
 
-                self.walletAddress = "testDemo"
-                self.$refs.webauthn.webRegister(self.walletAddress, function(err){
-                    self.$refs.webauthn.webLogin(self.walletAddress);
+                // webAuthn login
+                self.$refs.webauthn.webLogin(self.walletAddress, function() {
+                    self.initWeb3();
+                }, function() {
+                    // webAuthn register
+                    self.$refs.webauthn.webRegister(self.walletAddress, function(){
+                        self.$refs.webauthn.webLogin(self.walletAddress, function() {
+                            self.initWeb3();
+                        });
+                    });
                 });
-
-                // // self.sign(Web3.utils.soliditySha3("\x19Ethereum Signed Message:\n32", self.loadRandom), function(sig) {
-                // self.signTypedData(self.loadRandom, function(sig) {
-                //     console.log('sign successed: ', sig)
-                //     self.loadSignature = sig;
-                //     self.load();
-                // })
             })
         },
         onAccountChanged(action, network, address) {
@@ -83,7 +84,7 @@ export default {
                 this.connect = true;
                 this.modelAuthID = address;
                 this.walletAddress = address;
-                this.init();
+                this.webAuthnLogin();
             } else if (action === 'disconnect') {
                 this.connect = false;
                 this.walletAddress = '';
@@ -91,39 +92,54 @@ export default {
                 window.location.reload();
             }
         },
-        load() {
+        initWeb3() {
             let self = this;
-            let initBackend = function(recoverID, backendKey, web3Key, web3PublicKey) {
-                // wasm
-                let response = {};
-                Load(self.walletAddress, web3PublicKey, backendKey, function(wasmResponse) {
-                    response['data'] = JSON.parse(wasmResponse);
-                    if (response.data['Data'] !== null && response.data['Data'] !== undefined && response.data['Data'] !== {}) {
-                        // self.wasmCallback("Load", '', false);
-                        self.enableSpin(false);
-                        self.backendPublicKey = response.data['Data'];
-                        console.log('selfweb3 load from backend successed: ', response.data['Data']);
-                        self.$refs.privatePanel.init(recoverID, web3Key, web3PublicKey);
-                    } else {
-                        self.wasmCallback("Load", response.data['Error'], false);
-                    }
+            self.signTypedData(self.loadRandom, function(sig) {
+                var loadParams = [];
+                loadParams.push(sig);
+                loadParams.push(Web3.utils.asciiToHex(self.loadRandom));
+                self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (result) {
+                    console.log('selfweb3 load from contract successed: ', result);
+                    self.$refs.privatePanel.hasRegisted = true;
+                    self.enableSpin(false);
+                    let web3Key = Web3.utils.hexToAscii(result['web3Key']);
+                    let recoverID = Web3.utils.hexToAscii(result['recoverID']);
+                    let web3Public = Web3.utils.hexToAscii(result['web3Public']);
+                    self.initBackend(recoverID, web3Key, web3Public);
+                }, function (err) {
+                    self.enableSpin(false);
+                    self.$Message.error('selfWeb3 check from contract failed');
+                    self.initBackend('', '', '');
                 });
-            }
-
-            var loadParams = [];
-            loadParams.push(this.loadSignature);
-            loadParams.push(Web3.utils.asciiToHex(this.loadRandom));
-            self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (result) {
-                console.log('selfweb3 load from contract successed: ', result);
-                self.$refs.privatePanel.hasRegisted = true;
-                let web3Key = Web3.utils.hexToAscii(result['web3Key']);
-                let recoverID = Web3.utils.hexToAscii(result['recoverID']);
-                let backendKey = Web3.utils.hexToAscii(result['backendKey']);
-                let web3PublicKey = '0x042791d640dc87f1bf43075f6f205ffb5045adebcbd73b9942cf0a65f8970bbe80d7ffe21f66ea200636d54e927591766d9f53a785e40ef01ae9200332e15b651a';// Web3.utils.hexToAscii(result['web3PublicKey']);
-                initBackend(recoverID, backendKey, web3Key, web3PublicKey);
-            }, function (err) {
-                self.$Message.error('selfWeb3 load from contract failed');
-                initBackend('', '', '', '');
+            })
+        },
+        initBackend(recoverID, web3Key, web3PublicKey) {
+            let self = this;
+            let response = {};
+            WasmPublic(function(wasmResponse) {
+                let queryMap = {};
+                queryMap['kind'] = "selfweb3.web2Data";
+                queryMap['userID'] = self.walletAddress;
+                queryMap['public'] = JSON.parse(wasmResponse)['Data'];
+                self.wasmPublic = JSON.parse(wasmResponse)['Data'];
+                self.httpGet("/api/datas/load", queryMap, function(response) {
+                    if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
+                        self.$Message.error('web2 load datas failed: ', response.data['Error']);
+                    } else {
+                        let inputWeb2Key = "";
+                        let web2Response = response.data['Data'];
+                        WasmInit(self.walletAddress, inputWeb2Key, web2Response['Web2NetPublic'], web2Response['Web2Datas'], function(initResponse) {
+                            let wasmResp = {};
+                            wasmResp['data'] = JSON.parse(initResponse);
+                            if (wasmResp.data['Error'] !== '' && wasmResp.data['Error'] !== null && wasmResp.data['Error'] !== undefined) {
+                                self.wasmCallback("Init", response.data['Error'], false);
+                            } else {
+                                console.log('selfweb3 init web2 successed: ', wasmResp.data['Data']);
+                                self.$refs.privatePanel.init(recoverID, web3Key, web3PublicKey);
+                            }
+                        });
+                    }
+                })
             });
         },
         getWalletAddress() {
@@ -145,7 +161,7 @@ export default {
             let self = this;
             this.showTOTP = true;
             this.$nextTick(function(){
-                self.$refs.totpPanel.init(action, self.backendPublicKey, panelInitParam);
+                self.$refs.totpPanel.init(action, panelInitParam);
             });
         },
         afterVerify(hasVerified, panelInitParam, optionPanelName) {
@@ -208,23 +224,23 @@ export default {
                 this.$Message.error('exec wasm method failed: ' + method + ", " + err);    
             }
         },
-        httpGet(url, onResponse, onPanic) {
-            this.$axios.get(this.apiPrefix + url)
-                .then(function(response) {
-                    if (onResponse !== undefined && onResponse !== null) onResponse(response);
-                })
-                .catch(function(e) {
-                    console.log(e);
-                });
+        httpGet(url, formdata, onResponse, onPanic) {
+            this.$axios.get(this.apiPrefix + url, {params: formdata})
+            .then(function(response) {
+                if (onResponse !== undefined && onResponse !== null) onResponse(response);
+            })
+            .catch(function(e) {
+                console.log(e);
+            });
         },
         httpPost(url, formdata, onResponse, onPanic) {
             this.$axios.post(this.apiPrefix + url, formdata)
-                .then(function(response) {
-                    if (onResponse !== undefined && onResponse !== null) onResponse(response);
-                })
-                .catch(function(e) {
-                    console.log(e);
-                });
+            .then(function(response) {
+                if (onResponse !== undefined && onResponse !== null) onResponse(response);
+            })
+            .catch(function(e) {
+                console.log(e);
+            });
         }
     }
 }

@@ -73,17 +73,17 @@ export default {
                 }
             })
         },
-        webRegister(username, callback) {
+        webRegister(userID, callback, failed) {
             let self = this;
             // let name = walletAddress; //"wallet-" + walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
             let formdata = new FormData();
-            formdata.append('username', username);
+            formdata.append('userID', userID);
             fetch('/api/user/begin/register', {
 				method: 'POST',
                 body: formdata,
 			})
-			.then(self._checkStatus(200))
-            .then(response => response.json())
+			.then(self.checkStatus(200))
+            .then(res => self.checkError(res, failed))
 			.then(response => {
                 console.log("+++++++++++++", response)
                 let credentialCreationOptions = response["Data"];
@@ -105,7 +105,7 @@ export default {
                 let rawId = credential.rawId;
 
                 console.log('=================222: ', credential, "++++", clientDataJSON, attestationObject)
-				fetch('/api/user/finish/register?username=' + username, {
+				fetch('/api/user/finish/register?userID=' + userID, {
 					method: 'POST',
 					headers: {
 						'Accept': 'application/json',
@@ -121,22 +121,23 @@ export default {
                         },
                     }),
 				})
-                .then(self._checkStatus(200))
+                .then(self.checkStatus(200))
+                .then(res => self.checkError(res, failed))
                 .then(response => {
                     if (callback !== undefined && callback !== null) callback();
                 })
 			})
         },
-        webLogin(username, callback) {
+        webLogin(userID, callback, failed) {
             let self = this;
             let formdata = new FormData();
-            formdata.append('username', username);
+            formdata.append('userID', userID);
             fetch('/api/user/begin/login', {
 				method: 'POST',
                 body: formdata,
 			})
-			.then(self._checkStatus(200))
-            .then(response => response.json())
+			.then(self.checkStatus(200))
+            .then(res => self.checkError(res, failed))
             .then(response => {
                 let credentialRequestOptions = response["Data"];
                 console.log('start=================333: ', credentialRequestOptions)
@@ -156,7 +157,7 @@ export default {
                 let userHandle = assertion.response.userHandle;
 
                 console.log('=================444: ', assertion)
-				fetch('/api/user/finish/login?username=' + username, {
+				fetch('/api/user/finish/login?userID=' + userID, {
 					method: 'POST',
 					headers: {
 						'Accept': 'application/json',
@@ -174,7 +175,8 @@ export default {
                         },
                     }),
 				})
-                .then(self._checkStatus(200))
+                .then(self.checkStatus(200))
+                .then(res => self.checkError(res, failed))
                 .then(response => {
                     if (callback !== undefined && callback !== null) callback();
                 })
@@ -190,13 +192,20 @@ export default {
             return btoa(new Uint8Array(value).reduce((s, byte) => s + String.fromCharCode(byte), ''));
         },
         // Checks whether the status returned matches the status given.
-        _checkStatus(status) {
+        checkStatus(status) {
             return res => {
                 if (res.status === status) {
-                    return res;
+                    return res.json();
                 }
                 throw new Error(res.statusText);
             };
+        },
+        checkError(response, failed) {
+            if (response['Error'] === '') {
+                return response;
+            }
+            console.log('checkError: ', response['Error']);
+            if (failed !== undefined && failed !== null) failed();
         },
         // Base64 to ArrayBuffer
         bufferDecode(value) {

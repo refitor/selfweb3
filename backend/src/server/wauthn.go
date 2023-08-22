@@ -40,10 +40,10 @@ func InitWebAuthn(rpOrigin string) error {
 
 // webauthnUser represents the user model
 type webauthnUser struct {
-	id          uint64
-	name        string
-	displayName string
-	credentials []webauthn.Credential
+	ID          uint64                `json:"id"`
+	Name        string                `json:"name"`
+	DisplayName string                `json:"displayName"`
+	Credentials []webauthn.Credential `json:"credentials"`
 	SessionData *webauthn.SessionData `json:"-"`
 }
 
@@ -51,9 +51,9 @@ type webauthnUser struct {
 func NewWebauthnUser(name string, displayName string) *webauthnUser {
 
 	user := &webauthnUser{}
-	user.id = randomUint64()
-	user.name = name
-	user.displayName = displayName
+	user.ID = randomUint64()
+	user.Name = name
+	user.DisplayName = displayName
 	// user.credentials = []webauthn.Credential{}
 
 	return user
@@ -68,18 +68,18 @@ func randomUint64() uint64 {
 // WebAuthnID returns the user's ID
 func (u webauthnUser) WebAuthnID() []byte {
 	buf := make([]byte, binary.MaxVarintLen64)
-	binary.PutUvarint(buf, uint64(u.id))
+	binary.PutUvarint(buf, uint64(u.ID))
 	return buf
 }
 
 // WebAuthnName returns the user's username
 func (u webauthnUser) WebAuthnName() string {
-	return u.name
+	return u.Name
 }
 
 // WebAuthnDisplayName returns the user's display name
 func (u webauthnUser) WebAuthnDisplayName() string {
-	return u.displayName
+	return u.DisplayName
 }
 
 // WebAuthnIcon is not (yet) implemented
@@ -89,12 +89,12 @@ func (u webauthnUser) WebAuthnIcon() string {
 
 // AddCredential associates the credential to the user
 func (u *webauthnUser) AddCredential(cred webauthn.Credential) {
-	u.credentials = append(u.credentials, cred)
+	u.Credentials = append(u.Credentials, cred)
 }
 
 // WebAuthnCredentials returns credentials owned by the user
 func (u webauthnUser) WebAuthnCredentials() []webauthn.Credential {
-	return u.credentials
+	return u.Credentials
 }
 
 // CredentialExcludeList returns a CredentialDescriptor array filled
@@ -102,7 +102,7 @@ func (u webauthnUser) WebAuthnCredentials() []webauthn.Credential {
 func (u webauthnUser) CredentialExcludeList() []protocol.CredentialDescriptor {
 
 	credentialExcludeList := []protocol.CredentialDescriptor{}
-	for _, cred := range u.credentials {
+	for _, cred := range u.Credentials {
 		descriptor := protocol.CredentialDescriptor{
 			Type:         protocol.PublicKeyCredentialType,
 			CredentialID: cred.ID,

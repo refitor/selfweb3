@@ -1,25 +1,19 @@
 package wasm
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 
-	"selfweb3/pkg/rsauth"
+	"selfweb3/pkg"
 	"selfweb3/pkg/rscrypto"
-	"selfweb3/pkg/rsweb"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
-	c_Data_Pass               = "pass"
-	c_Data_Reload             = "reload"
-	c_Data_Pending            = "pending"
-	c_Data_Success            = "successed"
-	c_Error_Denied            = "permission denied"
-	c_Error_InvalidParams     = "invalid request params"
-	c_Error_SystenmExeception = "system processing exception"
+	c_Error_Denied        = "permission denied"
+	c_Error_InvalidParams = "invalid request params"
 )
 
 type Response struct {
@@ -34,153 +28,171 @@ func wasmResponse(data any, err string) *Response {
 	return wasmResp
 }
 
-// @request authID wallet address
-// @response backendPublic backend public key
-// @response web3Public wallet account public key
-func Load(datas ...string) *Response {
-	if len(datas) < 3 || datas[0] == "" {
-		return wasmResponse(nil, c_Error_InvalidParams)
-	}
-	authID, web3Public, backendKey := datas[0], datas[1], datas[2]
-
-	// cache backendKey
-	_, err := LoadAuthUser(authID, web3Public, backendKey)
-	if err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, ""))
-	}
-	return wasmResponse(hex.EncodeToString(crypto.CompressPubkey(vWorker.public)), "")
+// @response publicKey
+func WasmPublic(datas ...string) *Response {
+	return wasmResponse(hexutil.Encode(crypto.CompressPubkey(vWorker.public)), "")
 }
 
-// @request authID: wallet address
-// @request recoverID: push channel used to recover the backend (email phone number, etc.)
-// @response recoverID: recovery ID encrypted by backend key
-// @response qrcode: QR code for Google Authenticator scanning to add account
-// @response backendKey: encrypted by backend public key
-func Register(datas ...string) *Response {
+// @request userID unique user ID
+// @request web2Key web2Key input by user
+// @request web2NetPublic we2 network publicKey
+// @request web2Datas web2 response params
+// @response successed or error
+func WasmInit(datas ...string) *Response {
+	LogDebugf("WasmInit request: %v", datas)
+	if len(datas) < 4 {
+		return wasmResponse(nil, c_Error_InvalidParams)
+	}
+	userID, inputWeb2Key, web2NetPublic, web2Datas := datas[0], datas[1], datas[2], datas[3]
+
+	web2Map, err := pkg.Web2DecodeEx(vWorker.private, web2NetPublic, web2Datas)
+	if err != nil {
+		return wasmResponse(nil, WebError(err, "invalid web2Params"))
+	}
+	web2Key, web2Private := web2Map[pkg.C_Web2Key], web2Map[pkg.C_Web2Private]
+	if inputWeb2Key != "" {
+		web2Key = inputWeb2Key
+	}
+
+	// parse web2NetPublic
+	if public, err := rscrypto.GetPublicKey(web2NetPublic); err != nil {
+		return wasmResponse(nil, WebError(err, "invalid web2NetPublic"))
+	} else {
+		vWorker.web2NetPublic = public
+	}
+
+	if u := GetUser(userID); u == nil {
+		if _, err := NewUser(userID, Str(web2Key), Str(web2Private)); err != nil {
+			return wasmResponse(nil, WebError(err, "invalid web2Key or web2Private"))
+		}
+	}
+	return wasmResponse("successed", "")
+}
+
+// @request userID unique user ID
+// @request recoverID: Unique ID for social recovery, such as email address, mobile phone number, etc
+// @response web3User or error
+func WasmRegister(datas ...string) *Response {
+	LogDebugf("WasmRegister request: %v", datas)
 	if len(datas) < 2 || datas[0] == "" || datas[1] == "" {
 		return wasmResponse(nil, c_Error_InvalidParams)
 	}
-	authID, recoverID := datas[0], datas[1]
+	userID, recoverID := datas[0], datas[1]
 
 	// register user
-	auser, err := LoadAuthUser(authID, "", "")
-	if err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, ""))
+	user := GetUser(userID)
+	if user == nil {
+		return wasmResponse(nil, "user register without init")
 	}
 
 	// init backendKey and recoverID
-	encryptedRecoverID, encryptedBackendKey, err := auser.Init(authID, recoverID, nil)
+	web3User, err := user.Register(recoverID)
 	if err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, "encrypt backendKey or recoverID failed"))
+		return wasmResponse(nil, WebError(err, "encrypt web3 key or recoverID failed"))
 	}
-
-	vWorker := make(map[string]string, 0)
-	vWorker["recoverID"] = encryptedRecoverID
-	vWorker["backendKey"] = encryptedBackendKey
-	vWorker["qrcode"], _ = auser.GetQrcode(authID)
-	return wasmResponse(vWorker, "")
+	return wasmResponse(web3User, "")
 }
 
-// Post: /api/user/recover
-// @request authID: wallet address
-// @request pushID: push channel used to recover the backend (email phone number, etc.)
+// @request userID: unique user ID
+// @request authorizedID: ID used for dynamic authorization, such as email address, mobile phone number, etc
 // @response successed or error
-func Recover(datas ...string) *Response {
-	if len(datas) < 2 || datas[0] == "" || datas[1] == "" {
+func WasmAuthorizeCode(datas ...string) *Response {
+	LogDebugf("WasmAuthorizeCode request: %v", datas)
+	if len(datas) < 1 || datas[0] == "" {
 		return wasmResponse(nil, c_Error_InvalidParams)
 	}
-	authID, pushID := datas[0], datas[1]
+	userID, authorizedID := datas[0], datas[1]
 
-	// send verify code
-	code := rscrypto.GetRandom(6, true)
-	if err := SetCacheByTime("recoveryCode-"+authID, code, true, 300, nil); err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, ""))
+	if u := GetUser(userID); u == nil {
+		wasmResponse(nil, c_Error_Denied)
 	}
 
-	// sendCh := make(chan struct{})
-	// if _, err := rsauth.PushByEmail(pushID, "dynamic authorization", "", fmt.Sprintf("[SelfCrypto] code for dynamic authorization: %s", code), func(err error) {
-	// 	if err != nil {
-	// 		rslog.Errorf("email send failed: %s", err.Error())
-	// 	}
-	// 	close(sendCh)
-	// }); err != nil {
-	// 	return wasmResponse(nil, rsweb.WebError(err, ""))
-	// }
-	// <-sendCh
+	// encode authorized ID and code, provided by web2 service and connected with other third-party platforms
+	web2Map := make(map[string]any, 0)
+	web2Map[pkg.C_AuthorizeID] = authorizedID
+	web2Map[pkg.C_AuthorizeCode] = rscrypto.GetRandom(6, true)
+	web2Params, err := pkg.Web2Encode(vWorker.private, vWorker.web2NetPublic, web2Map)
+	if err != nil {
+		return wasmResponse(nil, WebError(err, "encode web2 params failed"))
+	}
 
-	// rslog.Debugf("push code to recoverID successed, recoverID: %s, code: %s", pushID, code)
-	SetCache("pushID-"+authID, pushID, true)
-
-	return wasmResponse(code, "")
+	// cache web2Params
+	if err := SetCacheByTime("Authorize-"+userID, web2Map, true, 300, nil); err != nil {
+		return wasmResponse(nil, WebError(err, ""))
+	}
+	return wasmResponse(web2Params, "")
 }
 
-// @request authID: wallet address
-// @request code: code input for dynamic authorization
-// @request kind: kind need verify for dynamic authorization
-// @request params: params need verify for dynamic authorization
-// @response for email verify qrcode for dynamic authorization verify
-// @response for dynamic authorization content encrypted or decrypted by backend key
-func Auth(datas ...string) *Response {
-	if len(datas) < 5 || datas[0] == "" || datas[1] == "" || datas[2] == "" || datas[3] == "" || datas[4] == "" {
+// @request userID: wallet address
+// @request kind: kind need verify for dynamic authorization， such as TOTP, email, etc.
+// @request code: Verification code for dynamic authorization, such as TOTP, email, mobile phone verification codes, etc
+// @request action is used to specify the action to be performed, relying on the dynamic authorization verification to pass
+// @request params: Optional, specific business parameters for the next step of the process after dynamic authorization is successful
+// @response business data or error
+func WasmVerify(datas ...string) *Response {
+	LogDebugf("WasmVerify request: %v", datas)
+	if len(datas) < 4 || datas[0] == "" || datas[1] == "" || datas[2] == "" {
 		return wasmResponse(nil, c_Error_InvalidParams)
 	}
-	authID, code, kind := datas[0], datas[1], datas[2]
-	authParams1, authParams2 := datas[3], datas[4]
+	userID, code, kind, action := datas[0], datas[1], datas[2], datas[3]
+	LogDebugln(userID, code, kind, action, datas[len(datas)-1])
 
-	// verify user
-	auser, err := LoadAuthUser(authID, "", "")
-	if err != nil {
-		return wasmResponse(nil, rsweb.WebError(err, ""))
-	}
-	if auser.SelfPrivate == nil {
-		return wasmResponse(nil, rsweb.WebError(err, c_Data_Reload))
+	user := GetUser(userID)
+	if user == nil {
+		wasmResponse(nil, c_Error_Denied)
 	}
 
-	// verify by google
+	// verify: TOTP, email
 	var verifyErr error
-	var responseData interface{}
-	vWorker := make(map[string]interface{}, 0)
+	var responseData any
 	switch kind {
-	case "google":
-		secret, err := auser.getKey(auser.Web3Public, nil)
+	case "TOTP":
+		if action == "dapp" {
+			if responseData, verifyErr = user.Handle(kind, datas[len(datas)-1]); verifyErr != nil {
+				break
+			}
+		}
+		secret, err := user.GetTOTPKey()
 		if err != nil {
 			verifyErr = err
 			break
 		}
-		if ok, err := rsauth.NewGoogleAuth().VerifyCode(secret, code); err != nil {
+		if ok, err := VerifyCode(secret, code); err != nil {
 			verifyErr = err
 			break
 		} else if !ok {
-			verifyErr = errors.New("selfCrypto google verify failed")
+			verifyErr = errors.New("dynamic authorization verify failed: TOTP")
 			break
 		}
-		responseData, err = auser.HandleCrypto(authParams1, authParams2)
-		if err != nil {
-			verifyErr = err
-			break
+		if action != "dapp" {
+			if responseData, verifyErr = user.Handle(kind, datas[len(datas)-1]); verifyErr != nil {
+				break
+			}
 		}
 	case "email":
-		memCode := GetCache("recoveryCode-"+authID, false, nil)
-		if code != fmt.Sprintf("%v", memCode) {
-			verifyErr = errors.New("selfCrypto email verify failed")
-			break
+		authorizeCache := GetCache("Authorize-"+userID, false, nil)
+		if authorizeCache != nil {
+			// verify code
+			web2Map := authorizeCache.(map[string]any)
+			recoverID := fmt.Sprintf("%v", web2Map[pkg.C_AuthorizeID])
+			if code != fmt.Sprintf("%v", web2Map[pkg.C_AuthorizeCode]) {
+				verifyErr = errors.New("dynamic authorization verify failed: email")
+				break
+			} else {
+				GetCache("Authorize-"+userID, true, nil)
+			}
+			if responseData, verifyErr = user.Handle(kind, datas[len(datas)-1], recoverID); verifyErr != nil {
+				break
+			}
 		} else {
-			GetCache(authID, true, nil)
+			verifyErr = errors.New("invalid authorized cache")
+			break
 		}
-
-		pushID := fmt.Sprintf("%v", GetCache("pushID-"+authID, true, nil))
-		resetUser, err := auser.Reset(authID, pushID, authParams1, authParams2)
-		if err != nil {
-			return wasmResponse(nil, rsweb.WebError(err, ""))
-		}
-		vWorker["qrcode"], _ = resetUser.GetQrcode(authID)
-		responseData = vWorker
 	default:
-		return wasmResponse(nil, c_Error_InvalidParams)
+		return wasmResponse(nil, "unsuport authorize kind: "+kind)
 	}
 	if verifyErr != nil {
-		return wasmResponse(nil, rsweb.WebError(verifyErr, "selfCrypto verify failed"))
+		return wasmResponse(nil, WebError(verifyErr, "dynamic authorization verify failed"))
 	}
-
 	return wasmResponse(responseData, "")
 }

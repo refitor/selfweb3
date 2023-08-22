@@ -1,92 +1,26 @@
 package rscrypto
 
 import (
-	"crypto"
+	"bytes"
 	"crypto/aes"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/pem"
+	"crypto/ecdsa"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base32"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 // aesKey: plain text
 // publicKey: pem.memory
 // privateKey: pem.memory
 // signature: base64.EncodeToString
-
-// =================== RSA ====================================
-// https://www.sohamkamani.com/golang/rsa-encryption/
-func GenerateRsaKey() ([]byte, []byte, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		return nil, nil, err
-	}
-	privBuf := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
-	pubBuf := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509.MarshalPKCS1PublicKey(&privateKey.PublicKey)})
-	return privBuf, pubBuf, nil
-}
-
-func RsaEncrypt(origData, publicKey []byte) ([]byte, error) {
-	block, _ := pem.Decode(publicKey)
-	if block == nil {
-		return nil, errors.New("public key error")
-	}
-	pub, err := x509.ParsePKCS1PublicKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	return rsa.EncryptPKCS1v15(rand.Reader, pub, origData)
-}
-
-func RsaDecrypt(ciphertext, privateKey []byte) ([]byte, error) {
-	block, _ := pem.Decode(privateKey)
-	if block == nil {
-		return nil, errors.New("private key error!")
-	}
-	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	return rsa.DecryptPKCS1v15(rand.Reader, priv, ciphertext)
-}
-
-func RsaSign(origData, privateKey []byte) (string, error) {
-	block, _ := pem.Decode(privateKey)
-	if block == nil {
-		return "", errors.New("public key error")
-	}
-	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return "", err
-	}
-	hash := sha256.Sum256(origData)
-	signature, err := rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA256, hash[:])
-	return base64.StdEncoding.EncodeToString(signature), nil
-}
-
-func RsaVerify(origData, signature, publicKey []byte) error {
-	block, _ := pem.Decode(publicKey)
-	if block == nil {
-		return errors.New("public key error")
-	}
-
-	pub, err := x509.ParsePKCS1PublicKey(block.Bytes)
-	if err != nil {
-		return err
-	}
-
-	sig, err := base64.StdEncoding.DecodeString(string(signature))
-	if err != nil {
-		return err
-	}
-	hash := sha256.Sum256(origData)
-	return rsa.VerifyPKCS1v15(pub, crypto.SHA256, hash[:], sig)
-}
-
-// =================== RSA ======================
 
 // =================== ECB ======================
 func GenerateAesKey(data string) string {
@@ -144,3 +78,58 @@ func generateKey(key []byte) (genKey []byte) {
 }
 
 // =================== ECB ======================
+
+// =================== ecdsa ======================
+func GetPublicKey(key string) (*ecdsa.PublicKey, error) {
+	pubBuf, err := hexutil.Decode(key)
+	if err != nil {
+		return nil, fmt.Errorf("GetPublicKey failed at hexutil.Decode, detail: %s", err.Error())
+	}
+	publicKey, err := crypto.DecompressPubkey(pubBuf)
+	if err != nil {
+		return nil, fmt.Errorf("GetPublicKey failed at crypto.DecompressPubkey, detail: %s", err.Error())
+	}
+	return publicKey, nil
+}
+
+func GetDhKey(publicKey *ecdsa.PublicKey, privateKey *ecdsa.PrivateKey) (string, error) {
+	if publicKey == nil {
+		return "", errors.New("GetDhKey failed with invalid public key")
+	}
+	if privateKey == nil {
+		return "", errors.New("GetDhKey failed with invalid private key")
+	}
+
+	skLen := 32
+	prv := ecies.ImportECDSA(privateKey)
+	pub := ecies.ImportECDSAPublic(publicKey)
+	if prv.PublicKey.Curve != pub.Curve {
+		return "", ecies.ErrInvalidCurve
+	}
+	if skLen > ecies.MaxSharedKeyLength(pub) {
+		return "", ecies.ErrSharedKeyTooBig
+	}
+
+	x, _ := pub.Curve.ScalarMult(pub.X, pub.Y, prv.D.Bytes())
+	if x == nil {
+		return "", ecies.ErrSharedKeyIsPointAtInfinity
+	}
+
+	sk := make([]byte, skLen)
+	skBytes := x.Bytes()
+	copy(sk[len(sk)-len(skBytes):], skBytes)
+
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.BigEndian, x.Int64())
+	return strings.ToUpper(base32.StdEncoding.EncodeToString(HmacSha1(buf.Bytes(), nil))), nil
+}
+
+func HmacSha1(key, data []byte) []byte {
+	h := hmac.New(sha1.New, key)
+	if total := len(data); total > 0 {
+		h.Write(data)
+	}
+	return h.Sum(nil)
+}
+
+// =================== ecdsa ======================

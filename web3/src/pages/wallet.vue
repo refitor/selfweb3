@@ -24,7 +24,8 @@ export default {
             web3: null,
             networkId: '',
             contractAddrMap: {
-                '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df'
+                '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
+                '1': '0x6A547C98A4363b71F74472aD25595F4677a8b94B',
             },
             contractABI: [
                 {
@@ -94,7 +95,7 @@ export default {
                         },
                         {
                             "internalType": "bytes",
-                            "name": "backendKey",
+                            "name": "web3Public",
                             "type": "bytes"
                         }
                     ],
@@ -179,7 +180,7 @@ export default {
                         },
                         {
                             "internalType": "bytes",
-                            "name": "backendKey",
+                            "name": "web3Public",
                             "type": "bytes"
                         }
                     ],
@@ -212,6 +213,19 @@ export default {
                             "internalType": "address",
                             "name": "",
                             "type": "address"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "inputs": [],
+                    "name": "Registered",
+                    "outputs": [
+                        {
+                            "internalType": "bool",
+                            "name": "",
+                            "type": "bool"
                         }
                     ],
                     "stateMutability": "view",

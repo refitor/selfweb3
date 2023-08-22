@@ -5,14 +5,9 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/refitor/rslog"
-)
-
-// global const
-const (
-	C_date_time = "2006-01-02 15:04:05"
 )
 
 var (
@@ -20,22 +15,19 @@ var (
 )
 
 type Worker struct {
-	config  sync.Map
-	memvar  sync.Map
-	public  *ecdsa.PublicKey
-	private *ecdsa.PrivateKey
+	cache         sync.Map
+	public        *ecdsa.PublicKey
+	private       *ecdsa.PrivateKey
+	web2NetPublic *ecdsa.PublicKey
 }
 
 func Init() *Worker {
 	vWorker = newWorker()
-	rslog.SetLevel("debug")
 	return vWorker
 }
 
-func UnInit() {
-}
-
 func newWorker() *Worker {
+	// rslog.SetDepth(6)
 	s := new(Worker)
 	private, ecdsaErr := crypto.GenerateKey()
 	FatalCheck(ecdsaErr)
@@ -44,40 +36,92 @@ func newWorker() *Worker {
 	return s
 }
 
-func (p *Worker) SetVar(key string, val interface{}, bForce bool) error {
-	if !bForce {
-		if _, ok := p.memvar.Load(key); ok {
-			return fmt.Errorf("cache data already exists, key: %v", key)
-		}
-	}
-	p.memvar.Store(key, val)
-	return nil
-}
-
-// delete: beforeDelleteFunc return true
-func (p *Worker) GetVar(key string, bDelete bool, beforeDelleteFunc func(v interface{}) bool) interface{} {
-	val, _ := p.memvar.Load(key)
-	if beforeDelleteFunc != nil {
-		if beforeDelleteFunc(val) {
-			p.memvar.Delete(key)
-		}
-	} else if bDelete {
-		p.memvar.Delete(key)
-	}
-	return val
-}
-
-func (p *Worker) SetConf(key, val string) {
-	p.config.Store(key, val)
-}
-
-func (p *Worker) GetConf(key string) string {
-	val, _ := p.config.Load(key)
-	return fmt.Sprintf("%v", val)
-}
-
 func FatalCheck(err error) {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+}
+
+func SetCache(key string, val interface{}, bForce bool) error {
+	if !bForce {
+		if _, ok := vWorker.cache.Load(key); ok {
+			return fmt.Errorf("cache data already exists, key: %v", key)
+		}
+	}
+	vWorker.cache.Store(key, val)
+	return nil
+}
+
+// delete: beforeDelleteFunc return true
+func GetCache(key string, bDelete bool, beforeDelleteFunc func(v interface{}) bool) interface{} {
+	val, _ := vWorker.cache.Load(key)
+	if bDelete {
+		if beforeDelleteFunc != nil && !beforeDelleteFunc(val) {
+			return val
+		}
+		vWorker.cache.Delete(key)
+	}
+	return val
+}
+
+func SetCacheByTime(key string, val interface{}, bForce bool, timeout time.Duration, callback func(string) bool) error {
+	if !bForce {
+		if _, ok := vWorker.cache.Load(key); ok {
+			return fmt.Errorf("cache data already exists, key: %v", key)
+		}
+	}
+	vWorker.cache.Store(key, val)
+
+	if timeout > 0 {
+		go autoClearByTimer(key, timeout, callback)
+	}
+	return nil
+}
+
+// timeUnit: second
+func autoClearByTimer(key string, timeout time.Duration, callback func(string) bool) {
+	timer := time.NewTimer(timeout * time.Second)
+	for {
+		select {
+		case <-timer.C:
+			if callback != nil {
+				if callback(key) {
+					timer.Stop()
+					vWorker.cache.Delete(key)
+				} else {
+					timer.Reset(timeout * time.Second)
+					break
+				}
+			} else {
+				timer.Stop()
+				vWorker.cache.Delete(key)
+			}
+			return
+		}
+	}
+}
+
+func Str(data any) string {
+	return fmt.Sprintf("%v", data)
+}
+
+func WebError(err error, webErr string) string {
+	logid := time.Now().UnixNano()
+	if webErr == "" {
+		webErr = "system processing exception"
+	}
+	if err != nil {
+		LogDebugf("%v-%s", logid, err.Error())
+	}
+	return fmt.Sprintf("%v-%s", logid, webErr)
+}
+
+func LogDebugln(datas ...interface{}) {
+	// rslog.Info(datas...)
+	// fmt.Println(datas...)
+}
+
+func LogDebugf(format string, datas ...interface{}) {
+	// rslog.Infof(format, datas...)
+	// fmt.Printf(format+"\n", datas...)
 }

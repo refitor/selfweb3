@@ -25,12 +25,13 @@
                         <h2 style="margin-bottom: 3px;">SelfWeb3</h2>
                         <Button :disabled="hasRegisted" @click="modalMode = 'register'; popModal = true" type="primary" style="margin: 10px;">Regist</Button>
                         <Button :disabled ="!hasRegisted" @click="beforeRecover()" type="primary" style="margin: 10px;">Recover</Button>
+                        <Button :disabled ="!hasRegisted" @click="executeAction('SelfVault')" type="primary" style="margin: 10px;">SelfVault</Button>
                         <!-- <Button :disabled ="!hasRegisted || web3Key === ''" @click="logout()" type="primary" style="margin: 10px;">Logout</Button> -->
                         <!-- <Button :disabled ="!hasRegisted || web3Key === ''" @click="executeAction('cryptoPanel', '')" type="primary" style="margin: 10px;">Encrypt-Decrypt</Button> -->
                         <Table border style="margin-top: 8px;" no-data-text="empty key/value list" :columns="items.columns" :data="items.data"></Table>
                     </div>
                     <VueQrcode v-if="qrcodeUrl !== ''" :value="qrcodeUrl" :options="{ width: 150 }" />
-                    <h3 v-if="qrcodeUrl !== ''" style="text-align: center;">Please add an account through Google Authenticator within 1 minutes.</h3>
+                    <h3 v-if="qrcodeUrl !== ''" style="text-align: center;">Please add an account via Google Authenticator within 1 minute and refresh the page.</h3>
                 </div>
             </div>
         </div>
@@ -120,13 +121,10 @@ export default {
             qrcodeUrl: '',
             qrcodeSize: 200,
 
-            storeFee: 0,
             web3Key: '',
             recoverID: '',
-            web3PublicKey: '',
-            hasRegisted: false,
-
-            hasEncrypted: false
+            web3Public: '',
+            hasRegisted: false
         }
     },
     mounted: function () {
@@ -135,16 +133,16 @@ export default {
         openLink(url) {
             window.open(url, '_blank');
         },
-        init(recoverID, web3Key, web3PublicKey) {
+        init(recoverID, web3Key, web3Public) {
             this.web3Key = web3Key;
             this.recoverID = recoverID;
-            this.web3PublicKey = web3PublicKey;
+            this.web3Public = web3Public;
             const contractAddr = this.$parent.getSelf().getWallet().contractAddrMap[this.$parent.getSelf().getWallet().networkId];
             this.addKV('Wallet', {'btnName': 'View', 'value': this.$parent.getSelf().getWalletAddress(), 'url': 'https://etherscan.io/token/' + this.$parent.getSelf().getWalletAddress()}, true);
             this.addKV('Contract', {'btnName': 'View', 'value': contractAddr, 'url': 'https://etherscan.io/token/' + contractAddr}, false);
             // this.addKV('Encrypt-Decrypt', {'value': this.$parent.getSelf().generatekey(16, false), 'btnName': 'Test'}, false);
-            this.addKV('SelfVault', {'value': contractAddr, 'btnName': 'Launch'}, false);
-            console.log('init privatePanel: ', web3Key, web3PublicKey);
+            // this.addKV('SelfVault', {'value': contractAddr, 'btnName': 'Launch'}, false);
+            console.log('init HomePanel: ', recoverID, web3Key, web3Public);
         },
         addKV(k, v, bReset) {
             if (bReset === true) this.items.data = [];
@@ -165,40 +163,45 @@ export default {
             }
             this.popModal = false;
 
-            var newWeb3Key = this.$parent.getSelf().generatekey(32); // TODO: encrypt by wallet
-
             // wasm
             let response = {};
-            Register(self.$parent.getSelf().getWalletAddress(), this.modelKey, function(wasmResponse) {
+            let userID = self.$parent.getSelf().getWalletAddress();
+            WasmRegister(userID, this.modelKey, function(wasmResponse) {
                 response['data'] = JSON.parse(wasmResponse);
                 if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
                     self.$parent.getSelf().wasmCallback("Register", response.data['Error']);
                 } else {
                     self.$parent.getSelf().wasmCallback("Register");
-
                     var registParams = [];
-                    var web3Key = newWeb3Key;
-                    var recoverID = response.data['Data']['recoverID'];
-                    var backendKey = response.data['Data']['backendKey'];
+                    var web3Key = response.data['Data']['Web3Key'];
+                    var recoverID = response.data['Data']['RecoverID'];
+                    var web3Public = response.data['Data']['Web3Public'];
                     registParams.push(Web3.utils.asciiToHex(recoverID));
                     registParams.push(Web3.utils.asciiToHex(web3Key));
-                    registParams.push(Web3.utils.asciiToHex(backendKey));
-                    registParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().backendPublicKey));
+                    registParams.push(Web3.utils.asciiToHex(web3Public));
                     self.$parent.getSelf().enableSpin(true);
-                    self.$parent.getSelf().getWallet().Execute("send", "Register", self.$parent.getSelf().getWalletAddress(), self.storeFee, registParams, function (result) {
+                    self.$parent.getSelf().getWallet().Execute("send", "Register", self.$parent.getSelf().getWalletAddress(), 0, registParams, function (result) {
                         self.$parent.getSelf().enableSpin(false);
+                        let recoverID = self.modelKey;
                         self.resetModal();
-
-                        // TODO: qrcode decode by wallet
                         self.hasRegisted = true;
-                        self.web3Key = newWeb3Key;
-                        self.showQRcode(response.data['Data']['qrcode']);
 
-                        // Please add an account through Google Authenticator within 1 minutes
-                        var timeoutID = setTimeout(function() {
-                            self.qrcodeUrl = '';
-                            window.location.reload();
-                        }, 60000);
+                        // store web2Private
+                        let formdata = new FormData();
+                        formdata.append("userID", userID);
+                        formdata.append("recoverID", recoverID);
+                        formdata.append("kind", 'selfweb3.web2Data');
+                        formdata.append("params", response.data['Data']['Web2Data']);
+                        self.$parent.getSelf().httpPost("/api/datas/store", formdata, function(storeResponse) {
+                            if (storeResponse.data['Error'] == '') {
+                                self.showQRcode(response.data['Data']['QRCode']);
+                                setTimeout(function() {
+                                    self.qrcodeUrl = '';
+                                    window.location.reload();
+                                }, 60000);
+                                // Please add an account through Google Authenticator within 1 minutes
+                            }
+                        })
                     }, function (err) {
                         self.$Message.error('selfWeb3 register at contract failed');
                         self.$parent.getSelf().enableSpin(false);
@@ -219,35 +222,29 @@ export default {
                 return;
             }
             this.popModal = false;
-            
-            // wasm
+
             let response = {};
-            this.$parent.getSelf().enableSpin(true);
-            Recover(self.$parent.getSelf().getWalletAddress(), this.modelKey, function(wasmResponse) {
+            let userID = self.$parent.getSelf().getWalletAddress();
+            WasmAuthorizeCode(userID, this.modelKey, function(wasmResponse) {
                 response['data'] = JSON.parse(wasmResponse);
                 if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                    self.$parent.getSelf().wasmCallback("Recover", response.data['Error'], false);
+                    self.$parent.getSelf().wasmCallback("Register", response.data['Error']);
                 } else {
-                    // emailjs
-                    var walletAddress = self.$parent.getSelf().getWalletAddress();
-                    var userName = walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
-                    var templateParams = {
-                        name: userName,
-                        user_email: self.modelKey,
-                        message: "[SelfWeb3] code for dynamic authorization: " + response.data['Data']
-                    };
-                    emailjs.send('service_selfcrypto', 'template_code_9lzgvhc', templateParams, 'd8z0CXeQInBbZKU4r')
-                    .then((result) => {
-                        self.$parent.getSelf().enableSpin(false);
-                        console.log('email send by emailjs successed!', result.text);
-                        self.$Message.success('email push successed for recovery');
-                        self.resetModal();
-                        self.modalMode = 'verify';
-                        self.popModal = true;
-                    }, (error) => {
-                        self.$parent.getSelf().enableSpin(false);
-                        console.log('email send by emailjs failed!...', error.text);
-                    });
+                    // store web2Private
+                    let formdata = new FormData();
+                    formdata.append("userID", userID);
+                    formdata.append("kind", 'email');
+                    formdata.append("params", response.data['Data']);
+                    formdata.append("public", self.$parent.getSelf().wasmPublic);
+                    self.$parent.getSelf().httpPost("/api/datas/forward", formdata, function(forwardResponse) {
+                        if (forwardResponse.data['Error'] == '') {
+                            self.$parent.getSelf().enableSpin(false);
+                            self.$Message.success('email push successed for recovery');
+                            self.resetModal();
+                            self.modalMode = 'verify';
+                            self.popModal = true;
+                        }
+                    })
                 }
             })
         },
@@ -260,67 +257,42 @@ export default {
             this.popModal = false; 
             this.$parent.getSelf().enableSpin(true);
 
-            // wasm
             let response = {};
-            const newWeb3PublicKey = self.$parent.getSelf().backendPublicKey;
-            Auth(self.$parent.getSelf().getWalletAddress(), this.modelKey, 'email', this.recoverID, newWeb3PublicKey, function(wasmResponse) {
+            let recoverMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Key": self.web3Key, "web3Public": self.web3Public};
+            let userID = self.$parent.getSelf().getWalletAddress();
+            WasmVerify(this.$parent.getSelf().getWalletAddress(), this.modelKey, 'email', this.action, JSON.stringify(recoverMap), function(wasmResponse) {
                 response['data'] = JSON.parse(wasmResponse);
+                console.log('ResetTOTPKey: ', response)
                 if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                    self.$parent.getSelf().wasmCallback("Auth", response.data['Error'], false);
-                    if (response.data['Error'] === 'reload') {
-                        window.location.reload();
-                        return;
-                    }
+                    self.$parent.getSelf().wasmCallback("WasmVerify", response.data['Error'], false);
                 } else {
-                    self.resetModal();
-                    let qrcode = response.data['Data']['qrcode'];
-
-                    const recoverRandom = self.$parent.getSelf().generatekey(32, false);
-                    self.$parent.getSelf().signTypedData(recoverRandom, function(sig) {
-                        var recoverParams = [];
-                        recoverParams.push(sig);
-                        recoverParams.push(Web3.utils.asciiToHex(recoverRandom));
-                        recoverParams.push(Web3.utils.asciiToHex(newWeb3PublicKey));
-                        self.$parent.getSelf().getWallet().Execute("send", "Recover", self.$parent.getSelf().getWalletAddress(), 0, recoverParams, function (result) {
-                            self.$parent.getSelf().enableSpin(false);
-                            
-                            // TODO: qrcode decode by wallet
-                            self.showQRcode(qrcode);
-                            self.web3PublicKey = newWeb3PublicKey;
-
-                            // Please add an account through Google Authenticator within 1 minutes
+                    self.$parent.getSelf().enableSpin(false);
+                    // store web2Private
+                    let formdata = new FormData();
+                    formdata.append("userID", userID);
+                    formdata.append("kind", 'selfweb3.web2Data');
+                    formdata.append("params", response.data['Data']['Web2Data']);
+                    self.$parent.getSelf().httpPost("/api/datas/store", formdata, function(storeResponse) {
+                        if (storeResponse.data['Error'] == '') {
+                            self.showQRcode(response.data['Data']['QRCode']);
                             setTimeout(function() {
                                 self.qrcodeUrl = '';
                                 window.location.reload();
                             }, 60000);
-                        }, function (err) {
-                            self.$parent.getSelf().enableSpin(false);
-                            self.$Message.error('selfWeb3 recover at contract failed');
-                        })
+                            // Please add an account through Google Authenticator within 1 minutes
+                        }
                     })
-
                 }
             })
         },
         executeAction(name, params) {
             let self = this;
-            if (name === 'Encrypt-Decrypt') {
-                if (this.hasEncrypted === false) {
-                    var web3Content = CryptoJS.AES.encrypt(params, self.web3Key).toString();
-                    self.$parent.getSelf().switchPanel('encrypt', '', web3Content, function(encryptedContent) {
-                        console.log('executeAction successed: ', web3Content, encryptedContent)
-                        self.addKV('Encrypt-Decrypt', {'value': encryptedContent, 'btnName': 'Decrypt'}, false);
-                        self.hasEncrypted = true;
-                    })
-                } else {
-                    self.$parent.getSelf().switchPanel('decrypt', '', params, function(deryptedContent) {
-                        var content = CryptoJS.AES.decrypt(deryptedContent, self.web3Key).toString(CryptoJS.enc.Utf8);
-                        self.addKV('Encrypt-Decrypt', {'value': content, 'btnName': 'Encrypt'}, false);
-                        self.hasEncrypted = false;
-                    })
-                }
+            const contractAddr = this.$parent.getSelf().getWallet().contractAddrMap[this.$parent.getSelf().getWallet().networkId];
+            if (name === 'SelfVault') {
+                let web3Map = {"method": "SelfVault", "web3Key": self.web3Key, "web3Public": self.web3Public};
+                this.$parent.getSelf().switchPanel('dapp', name, JSON.stringify(web3Map));
             } else {
-                this.$parent.getSelf().afterVerify(true, params, name);
+                this.$parent.getSelf().switchPanel(name, name, contractAddr);
             }
         },
         showQRcode(totpKey) {

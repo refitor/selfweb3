@@ -72,16 +72,14 @@ export default {
     data() {
         return {
             action: '',
-            backendPublic: '',
             afterVerifyContent: ''
         }
     },
     mounted: function() {
     },
     methods: {
-        init(action, backendPublic, afterVerifyContent) {
+        init(action, afterVerifyContent) {
             this.action = action;
-            this.backendPublic = backendPublic;
             this.afterVerifyContent = afterVerifyContent;
             const params = new URLSearchParams(window.location.search);
             $('.otp-event').each(function() {
@@ -161,20 +159,10 @@ export default {
             document.getElementById("code").value += document.getElementById("digits-6").value;
             const inputCode = document.getElementById("code").value;
 
-            // // http
-            // let formdata = new FormData();
-            // formdata.append('code', inputCode);
-            // formdata.append('kind', 'google');
-            // formdata.append('action', this.action);
-            // formdata.append('authID', this.$parent.getSelf().getWalletAddress());
-            // formdata.append('afterVerifyContent', this.afterVerifyContent);
-
             // wasm
             let response = {};
-            Auth(this.$parent.getSelf().getWalletAddress(), inputCode, 'google', this.action, this.afterVerifyContent, function(wasmResponse) {
+            WasmVerify(this.$parent.getSelf().getWalletAddress(), inputCode, 'TOTP', this.action, this.afterVerifyContent, function(wasmResponse) {
                 response['data'] = JSON.parse(wasmResponse);
-            // // http
-            // self.$parent.getSelf().httpPost('/api/user/verify', formdata, function(response){
                 if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
                     if (response.data['Error'] === 'reload') {
                         self.reload();

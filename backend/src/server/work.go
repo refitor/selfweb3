@@ -53,18 +53,21 @@ func Run(ctx context.Context, fs *embed.FS) {
 		n.UseHandlerFunc(router.ServeHTTP)
 		return n
 	})
+	rsauth.InitEmail("smtp.126.com:465", "refitor@126.com", "ZPHRFSXTEQUFNYLB")
 }
 
 type Worker struct {
-	cache   sync.Map
-	config  sync.Map
-	memvar  sync.Map
-	public  *ecdsa.PublicKey
-	private *ecdsa.PrivateKey
+	cache     sync.Map
+	config    sync.Map
+	memvar    sync.Map
+	public    *ecdsa.PublicKey
+	private   *ecdsa.PrivateKey
+	NetPublic *ecdsa.PublicKey
 }
 
 func (p *Worker) Init() {
 	rslog.SetLevel("debug")
+	rslog.SetDepth(5)
 
 	// db
 	FatalCheck(InitSession())
@@ -78,11 +81,7 @@ func (p *Worker) Init() {
 		return SaveToDB(C_Store_User, key, val)
 	}
 	UserGetFromStore = func(key string, ptrObject any) error {
-		buf, err := g_db.DBGet(C_Store_User, key)
-		if err != nil {
-			return err
-		}
-		return json.Unmarshal(buf, ptrObject)
+		return LoadFromDB(C_Store_User, key, ptrObject)
 	}
 
 	// wabauthn
@@ -94,13 +93,8 @@ func (p *Worker) Init() {
 	// 	return SaveToDB(C_Store_User, key, user)
 	// }
 	WebauthnGetFromStore = func(key string, ptrObject any) error {
-		buf, err := g_db.DBGet(C_Store_User, key)
-		if err != nil {
-			return err
-		}
-
 		user := &User{}
-		if err := json.Unmarshal(buf, &user); err != nil {
+		if err := LoadFromDB(C_Store_User, key, user); err != nil {
 			return err
 		}
 		return json.Unmarshal(user.WebauthnUser, ptrObject)
@@ -207,4 +201,8 @@ func SaveToDB(dbName string, cacheKey, cacheValue any) (retErr error) {
 		return storeFunc(cacheKey, cacheValue)
 	}
 	return
+}
+
+func Str(data any) string {
+	return fmt.Sprintf("%v", data)
 }

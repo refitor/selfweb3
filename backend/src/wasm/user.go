@@ -1,270 +1,269 @@
 package wasm
 
 import (
-	"bytes"
 	"crypto/ecdsa"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
-	"encoding/base32"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
 
 	"selfweb3/pkg/rscrypto"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/refitor/rslog"
 )
 
 const (
-	c_name_user   = "user"
-	c_public_hex  = ""                              // optional: The public key that participates in the google dynamic authorization key generation uses the wallet public key by default. If you need to change it, you can recompile and generate selfcrypto.wasm by specifying the private public key. The format is a hexadecimal string.
-	c_backend_pwd = "your password for the backend" // required: The backend password is used to encrypt the backendKey and recoverID stored in the contract, the format is a string of length 32
+	c_name_user = "user"
+	c_mode_web2 = "web2"
+	c_mode_web3 = "web3"
+
+	c_param_random  = "random"
+	c_param_web2Key = "web2Key"
+
+	c_param_web3Key    = "web3Key"
+	c_param_recoverID  = "recoverID"
+	c_param_web3Public = "web3Public"
+
+	c_dapp_SelfVault      = "SelfVault"
+	c_method_Web2Private  = "Web2Private"
+	c_method_ResetTOTPKey = "ResetTOTPKey"
+	c_method_ResetWeb2Key = "ResetWeb2Key"
 )
 
-type AuthUser struct {
-	ActiveTime  time.Time
+type Web3User struct {
+	QRCode     string
+	Web2Data   string
+	Web3Key    string
+	RecoverID  string
+	Web3Public string
+}
+
+type User struct {
+	ID          string
+	Web3Key     []byte
+	Web2Key     []byte
+	TOTPKey     []byte
 	Web3Public  *ecdsa.PublicKey
-	SelfPrivate *ecdsa.PrivateKey
-
-	// WebauthnUser *WebauthnUser
+	Web2Private *ecdsa.PrivateKey
 }
 
-// webAuthn.Login和web.Load走session
-func LoadAuthUser(authID, web3Public, backendKey string) (*AuthUser, error) {
-	if user, ok := GetCache(c_name_user+"-"+authID, false, nil).(*AuthUser); ok {
-		user.ActiveTime = time.Now()
-		return user, nil
-	} else {
-		// create user
-		user := &AuthUser{ActiveTime: time.Now()}
-
-		// handle for SelfPrivate
-		if backendKey != "" {
-			selfPrivateKeyBuf, err := hex.DecodeString(backendKey)
-			if err != nil {
-				return nil, fmt.Errorf("getAuthUser failed at hex.DecodeString, detail: %s", err.Error())
-			}
-			selfPrivateKey, err := crypto.ToECDSA(rscrypto.AesDecryptECB(selfPrivateKeyBuf, []byte(c_backend_pwd)))
-			if err != nil {
-				return nil, fmt.Errorf("getAuthUser failed at crypto.ToECDSA, detail: %s", err.Error())
-			}
-			user.SelfPrivate = selfPrivateKey
-		}
-
-		// specify the private public key
-		if c_public_hex != "" {
-			web3Public = c_public_hex
-		}
-
-		// walletPublic: handle for Web3Public
-		if web3Public != "" {
-			publicKey, err := user.getPublicKey(web3Public)
-			if err != nil {
-				return nil, fmt.Errorf("getAuthUser failed at user.getPublicKey, detail: %s", err.Error())
-			}
-			user.Web3Public = publicKey
-
-			strPublic := hex.EncodeToString(crypto.CompressPubkey(user.Web3Public))
-			rslog.Debugf("register user successed, %s, %s, %+v", web3Public, strPublic, user)
-		}
-
-		// save to cache
-		SetCacheByTime(c_name_user+"-"+authID, user, true, 900, func(s string) bool {
-			rslog.Infof("before delete user at memory, authID: %s", authID)
-			if memUser, ok := GetCache(s, false, nil).(*AuthUser); ok && memUser != nil && time.Since(memUser.ActiveTime).Seconds() < 900 {
-				return false
-			} else {
-				rslog.Infof("reset timer for user at memory, time-offset: %.2f", time.Since(memUser.ActiveTime).Seconds())
-			}
-			return true
-		})
-		return user, nil
+func NewUser(userID, web2Key, web2Private string) (*User, error) {
+	if web2Key == "" || web2Private == "" {
+		return nil, errors.New("invalid web2Key or web2PrivateKey")
 	}
-}
+	LogDebugf("before NewUser, %s, %s, %s", userID, web2Key, web2Private)
 
-func (p *AuthUser) Init(authID, recoverID string, privateKey *ecdsa.PrivateKey) (string, string, error) {
-	// generate privateKey
-	if privateKey == nil {
-		registPrivateKey3, err := crypto.GenerateKey()
-		if err != nil {
-			return "", "", fmt.Errorf("Init failed at crypto.GenerateKey, detail: %s", err.Error())
-		}
-		p.SelfPrivate = registPrivateKey3
-	} else {
-		p.SelfPrivate = privateKey
-	}
-	// privateKey3 := hexutil.Encode(crypto.FromECDSA(p.SelfPrivate))[2:]
-	selfPrivate3 := hex.EncodeToString(rscrypto.AesEncryptECB(crypto.FromECDSA(p.SelfPrivate), []byte(c_backend_pwd)))
-	// rslog.Debugf("Init generate privateKey successed, selfPrivate3: %s", selfPrivate3)
-
-	// recoverID
-	recoverIDBuf := rscrypto.AesEncryptECB([]byte(recoverID), []byte(c_backend_pwd))
-	return base32.StdEncoding.EncodeToString(recoverIDBuf), selfPrivate3, nil
-}
-
-func (p *AuthUser) Reset(authID, pushID, recoverID, web3Public string) (*AuthUser, error) {
-	// // decrypt recoverID by backendKey and verify pushID
-	// backendKey, err := p.getKey(p.Web3Public, nil)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	recoverIDBuf, _ := base32.StdEncoding.DecodeString(recoverID)
-	decryptedRecoverID := string(rscrypto.AesDecryptECB(recoverIDBuf, []byte(c_backend_pwd)))
-	if pushID != decryptedRecoverID {
-		return nil, fmt.Errorf("invalid pushID for recovery, pushID: %s, recoverID: %s", pushID, decryptedRecoverID)
+	// create user
+	user := &User{
+		ID:      userID,
+		Web2Key: []byte(web2Key),
 	}
 
-	web3PublicKey, err := p.getPublicKey(web3Public)
+	// decode web2 private key
+	web2PrivateBuf, err := hexutil.Decode(web2Private)
 	if err != nil {
-		return nil, fmt.Errorf("getAuthUser failed at user.getPublicKey, detail: %s", err.Error())
-	}
-
-	// reset AuthUser
-	resetUser := new(AuthUser)
-	resetUser.ActiveTime = p.ActiveTime
-	resetUser.Web3Public = web3PublicKey
-	if _, _, err := resetUser.Init(authID, decryptedRecoverID, p.SelfPrivate); err != nil {
 		return nil, err
 	}
-
-	// cache for user
-	SetCacheByTime(c_name_user+"-"+authID, resetUser, true, 0, func(s string) bool {
-		rslog.Infof("before delete user at memory, authID: %s", authID)
-		if memUser, ok := GetCache(s, false, nil).(*AuthUser); ok && memUser != nil && time.Since(memUser.ActiveTime).Seconds() < 900 {
-			return false
-		} else {
-			rslog.Infof("reset timer for user at memory, time-offset: %.2f", time.Since(memUser.ActiveTime).Seconds())
-		}
-		return true
-	})
-	return resetUser, nil
-}
-
-func (p *AuthUser) HandleCrypto(action, content string) (ret string, retErr error) {
-	if content == "" {
-		return "", errors.New("decrypt failed with invalid content")
-	}
-
-	switch action {
-	case "encrypt":
-		// private + public => encrypt key
-		key, err := p.getKey(vWorker.public, nil)
-		if err != nil {
-			return "", err
-		}
-		keyBuf, err := ecies.Encrypt(rand.Reader, ecies.ImportECDSAPublic(&p.SelfPrivate.PublicKey), []byte(key), nil, nil)
-		if err != nil {
-			return "", err
-		}
-
-		// [][]byte to json
-		ebuf := make([][]byte, 0)
-		ebuf = append(ebuf, keyBuf)
-		ebuf = append(ebuf, rscrypto.AesEncryptECB([]byte(content), []byte(key)))
-		ebufJson, err := json.Marshal(ebuf)
-		if err != nil {
-			return "", fmt.Errorf("encrypt failed at json.Marshal, detail: %s", err.Error())
-		}
-
-		// json to hex
-		ret = string(hex.EncodeToString(ebufJson))
-	case "decrypt":
-		// hex to json
-		debuf, err := hex.DecodeString(content)
-		if err != nil {
-			return "", fmt.Errorf("decrypt failed at hex.DecodeString, detail: %s", err.Error())
-		}
-
-		// json to [][]byte
-		ebuf := make([][]byte, 0)
-		if err := json.Unmarshal(debuf, &ebuf); err != nil {
-			return "", fmt.Errorf("decrypt failed at json.Unmarshal, detail: %s", err.Error())
-		}
-		if len(ebuf) != 2 {
-			return "", errors.New("decrypt failed with invalid content")
-		}
-
-		// generate key
-		key, err := ecies.ImportECDSA(p.SelfPrivate).Decrypt(ebuf[0], nil, nil)
-		if err != nil {
-			return "", err
-		}
-		ret = string(rscrypto.AesDecryptECB(ebuf[1], []byte(key)))
-	default:
-		ret = content
-	}
-	// rslog.Debugf("AuthUser HandleCrypto successed, action: %s, content: %s, result: %s", action, content, ret)
-	return ret, nil
-}
-
-func (p *AuthUser) GetQrcode(authID string) (string, error) {
-	return p.getKey(p.Web3Public, nil)
-}
-
-func (p *AuthUser) getPublicKey(key string) (*ecdsa.PublicKey, error) {
-	// parse publicKey from hex format
-	rslog.Debugf("getPublicKey, key: %s", key)
-	// if !strings.HasPrefix(web3Public, "0x04") {
-	// 	web3Public = "0x04" + web3Public
-	// }
-	pubBuf, err := hex.DecodeString(key)
+	privateBuf := rscrypto.AesDecryptECB(web2PrivateBuf, []byte(web2Key))
+	web2PrivateKey, err := crypto.ToECDSA(privateBuf[0:32])
 	if err != nil {
-		return nil, fmt.Errorf("getPublicKey failed at hex.Decode, detail: %s", err.Error())
+		return nil, err
 	}
-	publicKey, err := crypto.DecompressPubkey(pubBuf)
-	// publicKey, err := crypto.UnmarshalPubkey(pubBuf)
+	if len(privateBuf) > 32 {
+		user.TOTPKey = privateBuf[32:]
+	}
+	user.Web2Private = web2PrivateKey
+	LogDebugf("NewUser successed, user: %+v, %s", user, hexutil.Encode(crypto.FromECDSA(web2PrivateKey)))
+
+	SetCache(userID, user, true)
+	return user, nil
+}
+
+func GetUser(userID string) *User {
+	if u := GetCache(userID, false, nil); u != nil {
+		return u.(*User)
+	}
+	return nil
+}
+
+func (p *User) Load(web3Key, web3Public string) error {
+	if web3Key == "" || web3Public == "" {
+		return errors.New("invalid user web3Key or web3Public")
+	}
+	LogDebugf("before user load: %v, %v, %v", web3Key, web3Public, hexutil.Encode(crypto.FromECDSA(p.Web2Private)))
+
+	// decrypt: contract.web3Key + web2Private => web3Key
+	web3KeyBuf, err := hexutil.Decode(web3Key)
 	if err != nil {
-		return nil, fmt.Errorf("getPublicKey failed at crypto.DecompressPubkey, detail: %s", err.Error())
+		return fmt.Errorf("Load failed, hexutil.Decode: %s", err)
 	}
-	return publicKey, nil
+	keyBuf, err := ecies.ImportECDSA(p.Web2Private).Decrypt(web3KeyBuf, nil, nil)
+	if err != nil {
+		return fmt.Errorf("Load failed, ecies.ImportECDSA: %s", err)
+	}
+	p.Web3Key = keyBuf
+	LogDebugf("decrypt web3Key successed: %s, %s", web3Key, p.Web3Key)
+
+	// decrypt: contract.web3Public + web3Key => web3Public
+	web3PublicBuf, err := hexutil.Decode(web3Public)
+	if err != nil {
+		return fmt.Errorf("Load failed, hexutil.Decode: %s", err)
+	}
+	publicKey, err := crypto.DecompressPubkey(rscrypto.AesDecryptECB(web3PublicBuf, p.Web3Key))
+	if err != nil {
+		return fmt.Errorf("Load failed, GetPublicKey: %s", err)
+	}
+	p.Web3Public = publicKey
+
+	LogDebugf("LoadUser successed, user: %+v", *p)
+	return nil
 }
 
-func (p *AuthUser) getKey(publicKey *ecdsa.PublicKey, privateKey *ecdsa.PrivateKey) (string, error) {
-	if publicKey == nil {
-		return "", errors.New("generate key failed with invalid public key")
+func (p *User) Register(recoverID string) (*Web3User, error) {
+	if recoverID == "" {
+		return nil, errors.New("invalid recoverID")
 	}
-	if privateKey == nil && p.SelfPrivate == nil {
-		return "", errors.New("generate key failed with invalid private key")
+	if len(p.Web3Key) > 0 || p.Web3Public != nil {
+		return nil, fmt.Errorf("user registration again and again")
 	}
-	if privateKey == nil {
-		privateKey = p.SelfPrivate
-	}
+	web3User := &Web3User{}
 
-	skLen := 32
-	prv := ecies.ImportECDSA(privateKey)
-	pub := ecies.ImportECDSAPublic(publicKey)
-	if prv.PublicKey.Curve != pub.Curve {
-		return "", ecies.ErrInvalidCurve
+	// encrypt: web3Public + web3Key => contract.web3Public
+	// encrypt: web3Key + web2Public => contract.web3Key
+	web3Key := rscrypto.GetRandom(32, false)
+	web3KeyBuf, err := ecies.Encrypt(rand.Reader, ecies.ImportECDSAPublic(&p.Web2Private.PublicKey), []byte(web3Key), nil, nil)
+	if err != nil {
+		return nil, err
 	}
-	if skLen > ecies.MaxSharedKeyLength(pub) {
-		return "", ecies.ErrSharedKeyTooBig
+	web3User.Web3Key = hexutil.Encode(web3KeyBuf)
+	private, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
 	}
+	web3User.Web3Public = hexutil.Encode(rscrypto.AesEncryptECB(crypto.CompressPubkey(&private.PublicKey), []byte(web3Key)))
 
-	x, _ := pub.Curve.ScalarMult(pub.X, pub.Y, prv.D.Bytes())
-	if x == nil {
-		return "", ecies.ErrSharedKeyIsPointAtInfinity
+	// encrypt: dhKey + recoverID => contract.recoverID
+	dhKey, err := rscrypto.GetDhKey(&private.PublicKey, p.Web2Private)
+	if err != nil {
+		return nil, err
 	}
+	web3User.RecoverID = hexutil.Encode(rscrypto.AesEncryptECB([]byte(recoverID), []byte(dhKey)))
 
-	sk := make([]byte, skLen)
-	skBytes := x.Bytes()
-	copy(sk[len(sk)-len(skBytes):], skBytes)
+	// update user
+	p.Web3Key = []byte(web3Key)
+	p.Web3Public = &private.PublicKey
 
-	var buf bytes.Buffer
-	binary.Write(&buf, binary.BigEndian, x.Int64())
-	return strings.ToUpper(base32.StdEncoding.EncodeToString(p.hmacSha1(buf.Bytes(), nil))), nil
+	qrcode, err := p.InitTOTPKey()
+	if err != nil {
+		return nil, err
+	}
+	web2Data, err := Web2EncodePrivate(p)
+	if err != nil {
+		return nil, err
+	}
+	web3User.QRCode = qrcode
+	web3User.Web2Data = web2Data
+	LogDebugf("after encrypt: %+v, %+v, web3KeyBuf: %v, web2Private: %s", p, web3User, web3KeyBuf, hexutil.Encode(crypto.FromECDSA(p.Web2Private)))
+	return web3User, nil
 }
 
-func (p *AuthUser) hmacSha1(key, data []byte) []byte {
-	h := hmac.New(sha1.New, key)
-	if total := len(data); total > 0 {
-		h.Write(data)
+func (p *User) ResetWeb2Key(kind, random, web2Key string) (any, error) {
+	if kind == "email" {
+		SetCache("ResetWeb2Key", rscrypto.GetRandom(6, false), true)
+		return "successed", nil
 	}
-	return h.Sum(nil)
+	if web2Key == "" || web2Key == string(p.Web2Key) {
+		return nil, errors.New("invalid input web2Key")
+	}
+
+	// random verify
+	if cacheRandom := fmt.Sprintf("%v", GetCache("ResetWeb2Key", true, nil)); kind == "TOTP" && cacheRandom != "nil" && cacheRandom != "" {
+		if randomBuf, err := hexutil.Decode(random); err != nil {
+			return nil, err
+		} else if random = string(rscrypto.AesDecryptECB(randomBuf, p.Web2Key)); random != cacheRandom {
+			return nil, fmt.Errorf("invalid random, cache: %v, random: %s", cacheRandom, random)
+		}
+	}
+	p.Web2Key = []byte(p.Web2Key)
+	return Web2EncodePrivate(p)
+}
+
+func (p *User) ResetTOTPKey(recoverID, encryptedRecoverID string) (any, error) {
+	LogDebugln(recoverID, encryptedRecoverID)
+
+	// verify recoverID
+	dhKey, err := rscrypto.GetDhKey(p.Web3Public, p.Web2Private)
+	if err != nil {
+		return nil, err
+	}
+	if encryptedRecoverID != hexutil.Encode(rscrypto.AesEncryptECB([]byte(recoverID), []byte(dhKey))) {
+		return nil, fmt.Errorf("invalid pushID for recovery, pushID: %s", recoverID)
+	}
+
+	qrcode, err := p.InitTOTPKey()
+	if err != nil {
+		return nil, err
+	}
+	web2Data, err := Web2EncodePrivate(p)
+	if err != nil {
+		return nil, err
+	}
+	web3User := &Web3User{
+		QRCode:   qrcode,
+		Web2Data: web2Data,
+	}
+	LogDebugf("ResetTOTPKey web3User: %+v", web3User)
+	return web3User, nil
+}
+
+// {"method": "demo", "random": "", "params1": "", "param2": "", ...}
+func (p *User) Handle(kind string, params ...string) (handleResult any, handleErr error) {
+	if len(params) == 0 {
+		return "successed", nil
+	}
+	paramMap := make(map[string]string, 0)
+	if err := json.Unmarshal([]byte(params[0]), &paramMap); err != nil {
+		return nil, err
+	}
+	LogDebugf("before Handle: %v, %v, %v", params, paramMap[c_param_web3Key], paramMap[c_param_web3Public])
+
+	handleResult = "successed"
+	switch paramMap["method"] {
+	case c_dapp_SelfVault:
+		handleErr = p.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public])
+	case c_method_ResetTOTPKey:
+		if err := p.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); err != nil {
+			return nil, err
+		}
+		return p.ResetTOTPKey(params[len(params)-1], paramMap[c_param_recoverID])
+	case c_method_ResetWeb2Key:
+		return p.ResetWeb2Key(kind, paramMap[c_param_random], paramMap[c_param_web2Key])
+	case c_method_Web2Private:
+		return Web2EncodePrivate(p)
+	}
+	return
+}
+
+func (p *User) InitTOTPKey() (string, error) {
+	dhKey, err := rscrypto.GetDhKey(p.Web3Public, p.Web2Private)
+	if err != nil {
+		return "", err
+	}
+	tmpDhKey, err := rscrypto.GetDhKey(vWorker.web2NetPublic, vWorker.private)
+	if err != nil {
+		return "", err
+	}
+	LogDebugf("SetTOTPKey successed: %s, %s", dhKey, tmpDhKey)
+	p.TOTPKey = rscrypto.AesEncryptECB([]byte(tmpDhKey), []byte(dhKey))
+	return tmpDhKey, nil
+}
+
+func (p *User) GetTOTPKey() (string, error) {
+	dhKey, err := rscrypto.GetDhKey(p.Web3Public, p.Web2Private)
+	if err != nil {
+		return "", err
+	}
+	return string(rscrypto.AesDecryptECB(p.TOTPKey, []byte(dhKey))), nil
 }

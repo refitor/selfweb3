@@ -10,18 +10,12 @@ import (
 func main() {
 	// init
 	wasm.Init()
-	defer wasm.UnInit()
 
-	js.Global().Set("Auth", js.FuncOf(wrapWasmFunc(wasm.Auth)))
-	js.Global().Set("Load", js.FuncOf(wrapWasmFunc(wasm.Load)))
-	js.Global().Set("Register", js.FuncOf(wrapWasmFunc(wasm.Register)))
-	js.Global().Set("Recover", js.FuncOf(wrapWasmFunc(wasm.Recover)))
-
-	// // webAuthn
-	// js.Global().Set("BeginRegister", js.FuncOf(wrapWasmFunc(wasm.WebAuthnBeginRegister)))
-	// js.Global().Set("FinishRegister", js.FuncOf(wrapWasmFunc(wasm.WebAuthnFinishRegister)))
-	// js.Global().Set("BeginLogin", js.FuncOf(wrapWasmFunc(wasm.WebAuthnBeginLogin)))
-	// js.Global().Set("FinishLogin", js.FuncOf(wrapWasmFunc(wasm.WebAuthnFinishLogin)))
+	js.Global().Set("WasmInit", js.FuncOf(wrapWasmFunc(wasm.WasmInit)))
+	js.Global().Set("WasmVerify", js.FuncOf(wrapWasmFunc(wasm.WasmVerify)))
+	js.Global().Set("WasmPublic", js.FuncOf(wrapWasmFunc(wasm.WasmPublic)))
+	js.Global().Set("WasmRegister", js.FuncOf(wrapWasmFunc(wasm.WasmRegister)))
+	js.Global().Set("WasmAuthorizeCode", js.FuncOf(wrapWasmFunc(wasm.WasmAuthorizeCode)))
 
 	select {}
 }
@@ -35,6 +29,7 @@ func wrapWasmFunc(f func(datas ...string) *wasm.Response) func(this js.Value, ar
 				requestParams = append(requestParams, args[i].String())
 			}
 			responseBuf, _ := json.Marshal(f(requestParams...))
+			wasm.LogDebugf("wasmFunc response: %v", string(responseBuf))
 			callback.Invoke(string(responseBuf))
 		}()
 		return nil
