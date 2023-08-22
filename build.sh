@@ -10,9 +10,10 @@ cd ../../
 
 # # build web
 cd ./web3
+rm -rf ../rsweb/app
 yarn install
 yarn run build
 cd ../
 
 # build selfweb3
-go run -o selfweb3 main.go
+go build -o selfweb3 main.go
