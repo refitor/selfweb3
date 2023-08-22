@@ -66,8 +66,7 @@ type Worker struct {
 }
 
 func (p *Worker) Init() {
-	rslog.SetLevel("debug")
-	rslog.SetDepth(5)
+	rslog.SetLevel("info")
 
 	// db
 	FatalCheck(InitSession())
