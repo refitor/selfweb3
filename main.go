@@ -2,19 +2,23 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"selfweb3/src/server"
+	"selfweb3/backend/src/server"
 )
+
+//go:embed rsweb
+var memfs embed.FS
 
 func main() {
 	flag.Parse()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	server.Run(ctx, nil)
+	server.Run(ctx, &memfs)
 
 	// wait signal
 	var sigch = make(chan os.Signal)

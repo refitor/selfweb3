@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"sync"
 
-	"selfweb3/pkg/rsauth"
-	"selfweb3/pkg/rsweb"
+	"selfweb3/backend/pkg/rsauth"
+	"selfweb3/backend/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/refitor/rslog"
@@ -33,7 +33,7 @@ var (
 	DBPath  = flag.String("dbpath", "./selfweb3.db", "--dbPath=./selfweb3.db")
 	webPort = flag.String("port", "3157", "--port=3157")
 	webPath = flag.String("webpath", "rsweb", "--webpath=rsweb")
-	hostURL = flag.String("hosturl", "http://localhost:5173", "--hosturl=https://example.com")
+	hostURL = flag.String("hosturl", "https://selfweb3.refitor.com", "--hosturl=https://example.com")
 )
 
 func Run(ctx context.Context, fs *embed.FS) {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"syscall/js"
 
-	"selfweb3/src/wasm"
+	"selfweb3/backend/src/wasm"
 )
 
 func main() {

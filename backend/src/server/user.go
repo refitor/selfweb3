@@ -4,8 +4,8 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
-	"selfweb3/pkg/rsauth"
-	"selfweb3/pkg/rscrypto"
+	"selfweb3/backend/pkg/rsauth"
+	"selfweb3/backend/pkg/rscrypto"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"

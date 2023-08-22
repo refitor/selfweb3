@@ -2,7 +2,7 @@ package wasm
 
 import (
 	"crypto/ecdsa"
-	"selfweb3/pkg/rscrypto"
+	"selfweb3/backend/pkg/rscrypto"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"

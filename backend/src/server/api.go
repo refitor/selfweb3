@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"selfweb3/pkg"
-	"selfweb3/pkg/rscrypto"
-	"selfweb3/pkg/rsweb"
+	"selfweb3/backend/pkg"
+	"selfweb3/backend/pkg/rscrypto"
+	"selfweb3/backend/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
