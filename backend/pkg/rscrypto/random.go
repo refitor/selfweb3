@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 )
 
@@ -34,8 +35,12 @@ func GetRandom(n int, isNO bool) string {
 		if err != nil {
 			return ""
 		}
-
 		buffer[i] = alphanum[index]
+	}
+	if !isNO {
+		if i, err := strconv.Atoi(string(buffer[:1])); err == nil && i >= 0 && i <= 9 {
+			buffer[i] = byte('x')
+		}
 	}
 	return string(buffer)
 }

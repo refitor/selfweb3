@@ -14,16 +14,11 @@ import (
 	"github.com/refitor/rslog"
 )
 
-const (
-	// need user registration
-	c_error_user_invalid = "user.invalid"
-)
-
 var (
 	wcache               sync.Map
 	wauthn               *webauthn.WebAuthn
-	WebauthnSaveToStore  func(key string, val any) error
-	WebauthnGetFromStore func(key string, ptrObject any) error
+	WebauthnSaveToStore  func(key, encryptKey string, val any) error
+	WebauthnGetFromStore func(key, decryptKey string, ptrObject any) error
 )
 
 func InitWebAuthn(rpOrigin string) error {
@@ -115,11 +110,6 @@ func (u webauthnUser) CredentialExcludeList() []protocol.CredentialDescriptor {
 
 // webauthn handler
 func WauthnBeginRegister(username string) (interface{}, error, string) {
-	storeUser := &webauthnUser{}
-	if err := WebauthnGetFromStore(username, storeUser); storeUser != nil && err == nil {
-		return nil, nil, "user registration again and again"
-	}
-
 	// generate webauthn user
 	displayName := strings.Split(username, "@")[0]
 	user := NewWebauthnUser(username, displayName)
@@ -144,7 +134,7 @@ func WauthnBeginRegister(username string) (interface{}, error, string) {
 	return options, nil, ""
 }
 
-func WauthnFinishRegister(username string, bufReader io.Reader, bSave bool) (*webauthnUser, error, string) {
+func WauthnFinishRegister(username, webAuthnKey string, bufReader io.Reader) (*webauthnUser, error, string) {
 	// get webauthn user
 	var user *webauthnUser
 	if cacheUser, _ := wcache.Load(username); cacheUser != nil {
@@ -168,25 +158,25 @@ func WauthnFinishRegister(username string, bufReader io.Reader, bSave bool) (*we
 	user.SessionData = nil
 
 	// store
-	if bSave {
-		WebauthnSaveToStore(username, user)
+	if WebauthnSaveToStore != nil && webAuthnKey != "" {
+		WebauthnSaveToStore(username, webAuthnKey, user)
 	}
 
 	// response
 	return user, nil, ""
 }
 
-func WauthnBeginLogin(username string) (interface{}, error, string) {
+func WauthnBeginLogin(username, webAuthnKey string) (interface{}, error, string) {
 	// get webauthn user
 	var user *webauthnUser
 	if cacheUser, _ := wcache.Load(username); cacheUser != nil {
 		user = cacheUser.(*webauthnUser)
-	} else {
+	} else if WebauthnGetFromStore != nil {
 		// load user from the storage
 		user = &webauthnUser{}
-		if err := WebauthnGetFromStore(username, user); err != nil {
+		if err := WebauthnGetFromStore(username, webAuthnKey, user); err != nil {
 			rslog.Errorf("GetStoreUser failed, username: %s, detail: %s", username, err.Error())
-			return nil, nil, c_error_user_invalid
+			return nil, nil, "invalid user"
 		}
 	}
 	if user == nil {

@@ -11,13 +11,22 @@ import (
 
 const (
 	C_Web2Key       = "Web2Key"
-	C_Web2Datas     = "Web2Datas"
+	C_Web2Data      = "Web2Data"
+	C_WebAuthnKey   = "WebAuthnKey"
 	C_Web2Private   = "Web2Private"
 	C_Web2NetPublic = "Web2NetPublic"
 
 	C_AuthorizeID   = "AuthorizeID"
 	C_AuthorizeCode = "AuthorizeCode"
 )
+
+type Web2Data struct {
+	Web2Key string
+
+	Payload     string
+	WebAuthnKey string
+	Web2Private string
+}
 
 func Web2EncodeEx(priavateKey *ecdsa.PrivateKey, public string, data any) (string, error) {
 	publicKey, err := rscrypto.GetPublicKey(public)
@@ -42,30 +51,32 @@ func Web2Encode(priavateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey, data 
 	return hexutil.Encode(rscrypto.AesEncryptECB(dataBuf, []byte(dhKey))), nil
 }
 
-func Web2DecodeEx(privateKey *ecdsa.PrivateKey, public, data string) (map[string]any, error) {
+func Web2DecodeEx(privateKey *ecdsa.PrivateKey, public, data string, ptrObject any) error {
 	publicKey, err := rscrypto.GetPublicKey(public)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return Web2Decode(privateKey, publicKey, data)
+	return Web2Decode(privateKey, publicKey, data, ptrObject)
 }
 
-func Web2Decode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey, data string) (map[string]any, error) {
+func Web2Decode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey, data string, ptrObject any) error {
 	if publicKey == nil {
-		return nil, errors.New("invalid web2 network public key")
+		return errors.New("invalid web2 network public key")
 	}
 	dataBuf, err := hexutil.Decode(data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	dhKey, err := rscrypto.GetDhKey(publicKey, privateKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	dataMap := make(map[string]any)
-	if err := json.Unmarshal(rscrypto.AesDecryptECB(dataBuf, []byte(dhKey)), &dataMap); err != nil {
-		return nil, err
+	if ptrObject == nil {
+		return errors.New("invalid ptrObject for Web2Decode")
 	}
-	return dataMap, nil
+	if err := json.Unmarshal(rscrypto.AesDecryptECB(dataBuf, []byte(dhKey)), ptrObject); err != nil {
+		return err
+	}
+	return nil
 }

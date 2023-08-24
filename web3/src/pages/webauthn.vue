@@ -128,10 +128,11 @@ export default {
                 })
 			})
         },
-        webLogin(userID, callback, failed) {
+        webLogin(userID, webAuthnKey, callback, failed) {
             let self = this;
             let formdata = new FormData();
             formdata.append('userID', userID);
+            formdata.append('webAuthnKey', webAuthnKey);
             fetch('/api/user/begin/login', {
 				method: 'POST',
                 body: formdata,

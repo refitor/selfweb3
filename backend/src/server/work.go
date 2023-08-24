@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	"selfweb3/backend/pkg/rsauth"
+	"selfweb3/backend/pkg/rscrypto"
+	"selfweb3/backend/pkg/rsstore"
 	"selfweb3/backend/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -53,7 +55,6 @@ func Run(ctx context.Context, fs *embed.FS) {
 		n.UseHandlerFunc(router.ServeHTTP)
 		return n
 	})
-	rsauth.InitEmail("smtp.126.com:465", "refitor@126.com", "ZPHRFSXTEQUFNYLB")
 }
 
 type Worker struct {
@@ -62,44 +63,48 @@ type Worker struct {
 	memvar    sync.Map
 	public    *ecdsa.PublicKey
 	private   *ecdsa.PrivateKey
-	NetPublic *ecdsa.PublicKey
+	WebPublic *ecdsa.PublicKey
 }
 
 func (p *Worker) Init() {
 	rslog.SetLevel("info")
 
 	// db
-	FatalCheck(InitSession())
-	FatalCheck(InitStore(*DBPath))
+	FatalCheck(rsstore.InitSession())
+	FatalCheck(rsstore.InitStore(*DBPath))
 	FatalCheck(InitWebAuthn(*hostURL))
 
-	CreateDB(C_Store_User)
+	rsstore.CreateDB(C_Store_User)
 
 	// user
 	UserSaveToStore = func(key string, val any) error {
-		return SaveToDB(C_Store_User, key, val)
+		return rsstore.SaveToDB(&vWorker.cache, C_Store_User, key, val)
 	}
 	UserGetFromStore = func(key string, ptrObject any) error {
-		return LoadFromDB(C_Store_User, key, ptrObject)
+		return rsstore.LoadFromDB(C_Store_User, key, ptrObject)
 	}
 
 	// wabauthn
-	// WebauthnSaveToStore = func(key string, val any) error {
-	// 	user, err := CreateUser(key, val)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	return SaveToDB(C_Store_User, key, user)
-	// }
-	WebauthnGetFromStore = func(key string, ptrObject any) error {
+	WebauthnSaveToStore = func(key, encryptKey string, val any) error {
 		user := &User{}
-		if err := LoadFromDB(C_Store_User, key, user); err != nil {
+		if err := rsstore.LoadFromDB(C_Store_User, key, user); err != nil {
 			return err
 		}
-		return json.Unmarshal(user.WebauthnUser, ptrObject)
+		wbuf, err := json.Marshal(val)
+		if err != nil {
+			return err
+		}
+		user.WebauthnUser = rscrypto.AesDecryptECB(wbuf, []byte(encryptKey))
+		return rsstore.SaveToDB(&vWorker.cache, C_Store_User, key, user)
 	}
-
-	rsauth.InitEmail("smtp.126.com:465", "refitor@gmail.com", "xxxxxxxxxxxxx")
+	WebauthnGetFromStore = func(key, decryptKey string, ptrObject any) error {
+		user := &User{}
+		if err := rsstore.LoadFromDB(C_Store_User, key, user); err != nil {
+			return err
+		}
+		return json.Unmarshal(rscrypto.AesDecryptECB([]byte(user.WebauthnUser), []byte(decryptKey)), ptrObject)
+	}
+	rsauth.InitEmail("smtp.126.com:465", "refitor@126.com", "ZPHRFSXTEQUFNYLB")
 }
 
 func (p *Worker) UnInit() {
@@ -159,47 +164,6 @@ func FatalCheck(err error) {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-}
-
-func CreateDB(dbName string) error {
-	return g_db.DBCreate(dbName)
-}
-
-func LoadFromDB(dbName, key string, ptrObject any) error {
-	if buf, err := g_db.DBGet(dbName, key); err == nil {
-		if ptrObject != nil {
-			return json.Unmarshal(buf, ptrObject)
-		} else {
-			return nil
-		}
-	} else {
-		return err
-	}
-}
-
-func SaveToDB(dbName string, cacheKey, cacheValue any) (retErr error) {
-	storeFunc := func(key, val any) error {
-		abuf, err := json.Marshal(val)
-		if err != nil {
-			return err
-		}
-		if err := g_db.DBPut(dbName, fmt.Sprintf("%v", key), abuf); err != nil {
-			return err
-		}
-		return nil
-	}
-	if cacheKey == "" {
-		vWorker.cache.Range(func(key, value any) bool {
-			if err := storeFunc(key, value); err != nil {
-				rslog.Errorf("SaveToDB failed, dbName: %s, key: %v, val: %v", dbName, key, value)
-				return false
-			}
-			return true
-		})
-	} else {
-		return storeFunc(cacheKey, cacheValue)
-	}
-	return
 }
 
 func Str(data any) string {

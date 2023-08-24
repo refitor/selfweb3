@@ -1,14 +1,13 @@
 package server
 
 import (
-	"crypto/ecdsa"
-	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"selfweb3/backend/pkg"
 	"selfweb3/backend/pkg/rsauth"
 	"selfweb3/backend/pkg/rscrypto"
+	"selfweb3/backend/pkg/rsstore"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/refitor/rslog"
 )
 
@@ -21,37 +20,16 @@ var (
 	UserGetFromStore func(key string, ptrObject any) error
 )
 
-type WebUser struct {
-	Web2Key            string `json:"Web2Key"`
-	EncryptWeb2Private string `json:"Web2Private"`
-}
-
 type User struct {
-	WebUser
+	pkg.Web2Data
 
-	RecoverID    []byte            `json:"recoverID"`
-	Web2Private  *ecdsa.PrivateKey `json:"-"`
-	WebauthnUser json.RawMessage   `json:"WebauthnUser"`
+	RecoverID    []byte          `json:"recoverID"`
+	WebauthnUser json.RawMessage `json:"WebauthnUser"`
 }
 
-func CreateUser(userID string, webAuthnUser any) (*User, error) {
-	wuser := &WebUser{}
-
-	wubuf, err := json.Marshal(webAuthnUser)
-	if err != nil {
-		return nil, err
-	}
-	private, err := crypto.GenerateKey()
-	if err != nil {
-		return nil, err
-	}
-	user := &User{
-		WebUser:      *wuser,
-		Web2Private:  private,
-		WebauthnUser: wubuf,
-	}
-	user.WebUser.Web2Key = rscrypto.GetRandom(32, false)
-	user.EncryptWeb2Private = hexutil.Encode(rscrypto.AesEncryptECB(crypto.FromECDSA(user.Web2Private), []byte(user.WebUser.Web2Key)))
+func CreateUser(userID string) (*User, error) {
+	user := &User{}
+	user.Web2Data.Web2Key = rscrypto.GetRandom(32, false)
 	rslog.Debugf("CreateUser successed: %+v", user)
 
 	// store
@@ -70,14 +48,76 @@ func GetUser(username string) *User {
 	return user
 }
 
-func (p *User) Web2EncodePrivate(dhNetKey string) string {
-	web2Private := append(crypto.FromECDSA(p.Web2Private), []byte(dhNetKey)...)
-	return hex.EncodeToString(rscrypto.AesEncryptECB(web2Private, []byte(p.Web2Key)))
+func UserStoreWeb2Data(userID, recoverID, encryptWeb2Data string) error {
+	rslog.Infof("before store user web2Data: %s, %s, %s", userID, recoverID, encryptWeb2Data)
+
+	// load user
+	user := &User{}
+	if err := rsstore.LoadFromDB(C_Store_User, userID, user); err != nil {
+		return err
+	}
+	if recoverID != "" {
+		user.RecoverID = rscrypto.AesEncryptECB([]byte(recoverID), []byte(user.Web2Key))
+	} else if len(user.RecoverID) > 0 {
+		recoverID = string(rscrypto.AesDecryptECB(user.RecoverID, []byte(user.Web2Key)))
+	}
+
+	// parse encryptWeb2Data
+	web2Key := user.Web2Key
+	if err := pkg.Web2Decode(vWorker.private, vWorker.WebPublic, encryptWeb2Data, &user.Web2Data); err != nil {
+		return err
+	}
+	user.Web2Data.Web2Key = web2Key
+
+	// store and send notifications
+	if err := UserSaveToStore(userID, user); err != nil {
+		return err
+	}
+	if err := SendEmailToUser("selfweb3 notifications", recoverID, fmt.Sprintf("[SelfWeb3] Hi, your selfweb3 account has been updated, please keep the web2 private key ciphertext safe: %s", user.Web2Private)); err != nil {
+		return err
+	}
+	rslog.Infof("store user web2Data successed: %+v", user.Web2Data)
+	return nil
 }
 
-func SendEmailToUser(email, content string) error {
+func UserLoadWeb2Data(userID, webPublic, params string) (any, error) {
+	rslog.Infof("before load user web2Data: %s, %s, %s", userID, webPublic, params)
+
+	// parse webPublic
+	if webPublic != "" {
+		publicKey, err := rscrypto.GetPublicKey(webPublic)
+		if err != nil {
+			return nil, err
+		}
+		vWorker.WebPublic = publicKey
+	}
+
+	// load user
+	user := &User{}
+	if err := rsstore.LoadFromDB(C_Store_User, userID, user); err != nil {
+		if params == "initWeb2" {
+			u, err := CreateUser(userID)
+			if err != nil {
+				return nil, err
+			}
+			user = u
+		} else {
+			return nil, err
+		}
+	}
+
+	// encrypt web2Data
+	web2Data, err := pkg.Web2EncodeEx(vWorker.private, webPublic, &user.Web2Data)
+	if err != nil {
+		return nil, err
+	}
+	rslog.Infof("load user web2Data successed: %s", web2Data)
+	return web2Data, nil
+}
+
+func SendEmailToUser(title, email, content string) error {
 	sendCh := make(chan struct{})
-	if _, err := rsauth.PushByEmail(email, "dynamic authorization", "", content, func(err error) {
+	if _, err := rsauth.PushByEmail(email, title, "", content, func(err error) {
 		if err != nil {
 			rslog.Errorf("email send failed: %s", err.Error())
 		}

@@ -5,13 +5,17 @@ import (
 	"net/http"
 
 	"selfweb3/backend/pkg"
-	"selfweb3/backend/pkg/rscrypto"
+	"selfweb3/backend/pkg/rsstore"
 	"selfweb3/backend/pkg/rsweb"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/julienschmidt/httprouter"
 	"github.com/refitor/rslog"
+)
+
+const (
+	c_datas_kind_web2Data = "web2Data"
 )
 
 func RouterInit(router *httprouter.Router) {
@@ -44,60 +48,34 @@ func UserVerify(w http.ResponseWriter, r *http.Request) bool {
 
 // ====== datas ======
 // POST: /api/datas/store
-// params: userID, kind, recoverID, params
 func webDatasStore(w http.ResponseWriter, r *http.Request) {
-	user := &User{}
-	userID := rsweb.WebParams(r).Get("userID")
-	if err := LoadFromDB(C_Store_User, userID, user); err != nil {
-		rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
-		return
-	}
-
 	kind := rsweb.WebParams(r).Get("kind")
+	var handleErr error
 	switch kind {
-	case "selfweb3.web2Data":
-		recoverID := rsweb.WebParams(r).Get("recoverID")
-		if recoverID != "" {
-			user.RecoverID = rscrypto.AesEncryptECB([]byte(recoverID), []byte(user.Web2Key))
-		} else if len(user.RecoverID) > 0 {
-			recoverID = string(rscrypto.AesDecryptECB(user.RecoverID, []byte(user.Web2Key)))
-		}
-		user.EncryptWeb2Private = rsweb.WebParams(r).Get("params")
-		if err := UserSaveToStore(userID, user); err != nil {
-			rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
-			return
-		}
-		if err := SendEmailToUser(recoverID, fmt.Sprintf("[SelfWeb3] Hi, your selfweb3 account has been updated, please keep the web2 private key ciphertext safe: %s", user.EncryptWeb2Private)); err != nil {
-			rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
-			return
-		}
+	case c_datas_kind_web2Data:
+		handleErr = UserStoreWeb2Data(rsweb.WebParams(r).Get("userID"), rsweb.WebParams(r).Get("recoverID"), rsweb.WebParams(r).Get("params"))
 	default:
 		rsweb.ResponseError(w, r, "unsupport store kind: "+kind)
+	}
+	if handleErr != nil {
+		rsweb.ResponseError(w, r, rsweb.WebError(handleErr, ""))
+		return
 	}
 	rsweb.ResponseOk(w, r, "successed")
 }
 
 // GET: /api/datas/load
-// params: userID, kind, public
 func webDatasLoad(w http.ResponseWriter, r *http.Request) {
-	user := &User{}
-	userID := rsweb.WebParams(r).Get("userID")
-	if err := LoadFromDB(C_Store_User, userID, user); err != nil {
-		rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
-		return
-	}
-
 	kind := rsweb.WebParams(r).Get("kind")
-	webPublic := rsweb.WebParams(r).Get("public")
 	switch kind {
-	case "selfweb3.web2Data":
-		web2Datas, err := pkg.Web2EncodeEx(vWorker.private, webPublic, user.WebUser)
+	case c_datas_kind_web2Data:
+		web2Data, err := UserLoadWeb2Data(rsweb.WebParams(r).Get("userID"), rsweb.WebParams(r).Get("public"), rsweb.WebParams(r).Get("params"))
 		if err != nil {
 			rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
 			return
 		}
 		rsweb.ResponseOk(w, r, map[string]any{
-			pkg.C_Web2Datas:     web2Datas,
+			pkg.C_Web2Data:      web2Data,
 			pkg.C_Web2NetPublic: hexutil.Encode(crypto.CompressPubkey(vWorker.public)),
 		})
 	default:
@@ -106,18 +84,16 @@ func webDatasLoad(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST: /api/datas/load
-// params: userID, kind, params
 func webDatasForward(w http.ResponseWriter, r *http.Request) {
-	webPublic := rsweb.WebParams(r).Get("public")
 	kind := rsweb.WebParams(r).Get("kind")
 	switch kind {
 	case "email":
-		web2Map, err := pkg.Web2DecodeEx(vWorker.private, webPublic, rsweb.WebParams(r).Get("params"))
-		if err != nil {
+		web2Map := make(map[string]string, 0)
+		if err := pkg.Web2DecodeEx(vWorker.private, rsweb.WebParams(r).Get("public"), rsweb.WebParams(r).Get("params"), &web2Map); err != nil {
 			rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
 			return
 		}
-		if err := SendEmailToUser(Str(web2Map[pkg.C_AuthorizeID]), fmt.Sprintf("[SelfWeb3] code for dynamic authorization: %s", Str(web2Map[pkg.C_AuthorizeCode]))); err != nil {
+		if err := SendEmailToUser("selfweb3 notifications", Str(web2Map[pkg.C_AuthorizeID]), fmt.Sprintf("[SelfWeb3] code for dynamic authorization: %s", Str(web2Map[pkg.C_AuthorizeCode]))); err != nil {
 			rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
 			return
 		}
@@ -171,30 +147,36 @@ func WebAuthnBeginRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func WebAuthnFinishRegister(w http.ResponseWriter, r *http.Request) {
+	user := &User{}
 	userID := rsweb.WebParams(r).Get("userID")
+	if err := rsstore.LoadFromDB(C_Store_User, userID, user); err != nil {
+		rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
+		return
+	}
 
-	wuser, err, webErr := WauthnFinishRegister(userID, r.Body, false)
+	_, err, webErr := WauthnFinishRegister(userID, "", r.Body)
 	if webErr != "" {
 		rsweb.ResponseError(w, r, webErr)
 		return
 	}
 	if err != nil {
-		rsweb.ResponseError(w, r, rsweb.WebError(err, webErr))
-		return
-	}
-
-	// create user
-	if _, err := CreateUser(userID, wuser); err != nil {
-		rsweb.ResponseError(w, r, rsweb.WebError(err, webErr))
+		rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
 		return
 	}
 	rsweb.ResponseOk(w, r, "successed")
 }
 
 func WebAuthnBeginLogin(w http.ResponseWriter, r *http.Request) {
+	web2Data := &pkg.Web2Data{}
 	userID := rsweb.WebParams(r).Get("userID")
+	rslog.Infof("WebAuthnBeginLogin: %s", rsweb.WebParams(r).Get("webAuthnKey"))
+	if err := pkg.Web2Decode(vWorker.private, vWorker.WebPublic, rsweb.WebParams(r).Get("webAuthnKey"), web2Data); err != nil {
+		rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
+		return
+	}
+	rslog.Infof("WebAuthnBeginLogin parse web2Data successed: %+v", web2Data)
 
-	response, err, webErr := WauthnBeginLogin(userID)
+	response, err, webErr := WauthnBeginLogin(userID, Str(web2Data.WebAuthnKey))
 	if webErr != "" {
 		rsweb.ResponseError(w, r, webErr)
 		return
@@ -224,4 +206,8 @@ func WebAuthnFinishLogin(w http.ResponseWriter, r *http.Request) {
 	// PushToSession(w, r, C_Session_User, GetUser(userID))
 
 	rsweb.ResponseOk(w, r, response)
+}
+
+func UserSessionCheck(w http.ResponseWriter, r *http.Request) bool {
+	return rsstore.PopFromSession(r, rsstore.C_Session_User) != ""
 }

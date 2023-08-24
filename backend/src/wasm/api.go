@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -43,16 +44,17 @@ func WasmInit(datas ...string) *Response {
 	if len(datas) < 4 {
 		return wasmResponse(nil, c_Error_InvalidParams)
 	}
-	userID, inputWeb2Key, web2NetPublic, web2Datas := datas[0], datas[1], datas[2], datas[3]
+	userID, inputWeb2Key, web2NetPublic, web2Data := datas[0], datas[1], datas[2], datas[3]
 
-	web2Map, err := pkg.Web2DecodeEx(vWorker.private, web2NetPublic, web2Datas)
-	if err != nil {
+	wd2 := &pkg.Web2Data{}
+	if err := pkg.Web2DecodeEx(vWorker.private, web2NetPublic, web2Data, wd2); err != nil {
 		return wasmResponse(nil, WebError(err, "invalid web2Params"))
 	}
-	web2Key, web2Private := web2Map[pkg.C_Web2Key], web2Map[pkg.C_Web2Private]
+	web2Key, webAuthnKey, web2Private := wd2.Web2Key, wd2.WebAuthnKey, wd2.Web2Private
 	if inputWeb2Key != "" {
 		web2Key = inputWeb2Key
 	}
+	LogDebugf("-==============%s, %s, %+v", web2Key, web2Private, wd2)
 
 	// parse web2NetPublic
 	if public, err := rscrypto.GetPublicKey(web2NetPublic); err != nil {
@@ -62,7 +64,7 @@ func WasmInit(datas ...string) *Response {
 	}
 
 	if u := GetUser(userID); u == nil {
-		if _, err := NewUser(userID, Str(web2Key), Str(web2Private)); err != nil {
+		if _, err := NewUser(userID, web2Key, webAuthnKey, web2Private); err != nil {
 			return wasmResponse(nil, WebError(err, "invalid web2Key or web2Private"))
 		}
 	}
@@ -129,6 +131,10 @@ func WasmAuthorizeCode(datas ...string) *Response {
 // @request action is used to specify the action to be performed, relying on the dynamic authorization verification to pass
 // @request params: Optional, specific business parameters for the next step of the process after dynamic authorization is successful
 // @response business data or error
+const (
+	c_action_RelationVerify = "RelationVerify"
+)
+
 func WasmVerify(datas ...string) *Response {
 	LogDebugf("WasmVerify request: %v", datas)
 	if len(datas) < 4 || datas[0] == "" || datas[1] == "" || datas[2] == "" {
@@ -147,25 +153,14 @@ func WasmVerify(datas ...string) *Response {
 	var responseData any
 	switch kind {
 	case "TOTP":
-		if action == "dapp" {
-			if responseData, verifyErr = user.Handle(kind, datas[len(datas)-1]); verifyErr != nil {
+		if action == c_action_RelationVerify {
+			responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1])
+			break
+		} else {
+			if verifyErr = user.VerifyTOTP(code); verifyErr != nil {
 				break
 			}
-		}
-		secret, err := user.GetTOTPKey()
-		if err != nil {
-			verifyErr = err
-			break
-		}
-		if ok, err := VerifyCode(secret, code); err != nil {
-			verifyErr = err
-			break
-		} else if !ok {
-			verifyErr = errors.New("dynamic authorization verify failed: TOTP")
-			break
-		}
-		if action != "dapp" {
-			if responseData, verifyErr = user.Handle(kind, datas[len(datas)-1]); verifyErr != nil {
+			if responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1]); verifyErr != nil {
 				break
 			}
 		}
@@ -181,7 +176,7 @@ func WasmVerify(datas ...string) *Response {
 			} else {
 				GetCache("Authorize-"+userID, true, nil)
 			}
-			if responseData, verifyErr = user.Handle(kind, datas[len(datas)-1], recoverID); verifyErr != nil {
+			if responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1], recoverID); verifyErr != nil {
 				break
 			}
 		} else {
@@ -195,4 +190,48 @@ func WasmVerify(datas ...string) *Response {
 		return wasmResponse(nil, WebError(verifyErr, "dynamic authorization verify failed"))
 	}
 	return wasmResponse(responseData, "")
+}
+
+// {"method": "demo", "random": "", "params1": "", "param2": "", ...}
+const (
+	c_method_Web2Data       = "Web2Data"
+	c_method_WebAuthnKey    = "WebAuthnKey"
+	c_method_ResetTOTPKey   = "ResetTOTPKey"
+	c_method_ResetWeb2Key   = "ResetWeb2Key"
+	c_method_RelationVerify = "RelationVerify"
+)
+
+func wasmHandle(kind string, user *User, params ...string) (handleResult any, handleErr error) {
+	if len(params) == 0 {
+		return "successed", nil
+	} else if len(params) > 0 && params[0] == "" {
+		return "successed", nil
+	}
+	paramMap := make(map[string]string, 0)
+	if err := json.Unmarshal([]byte(params[0]), &paramMap); err != nil {
+		return nil, fmt.Errorf("wasmHandle failed with invalid params: %s", params[0])
+	}
+	LogDebugf("before Handle: %v, %v, %v", params, paramMap[c_param_web3Key], paramMap[c_param_web3Public])
+
+	handleResult = "successed"
+	switch paramMap["method"] {
+	case c_method_RelationVerify:
+		handleErr = user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public])
+	case c_method_ResetTOTPKey:
+		if err := user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); err != nil {
+			return nil, err
+		}
+		return user.ResetTOTPKey(params[len(params)-1], paramMap[c_param_recoverID])
+	case c_method_ResetWeb2Key:
+		return user.ResetWeb2Key(kind, paramMap[c_param_random], paramMap[c_param_web2Key])
+	case c_method_Web2Data:
+		return Web2EncryptWeb2Data(user)
+	case c_method_WebAuthnKey:
+		if err := user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); err != nil {
+			return nil, err
+		}
+		LogDebugf("webAuthn: %+s", string(user.WebAuthnKey))
+		return Web2DecryptWebAuthnKey(user)
+	}
+	return
 }

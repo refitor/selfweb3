@@ -41,10 +41,7 @@ export default {
             backendPublicKey: '',
             afterVerifyFunc: null,
 
-            recoverID: '',
             apiPrefix: '',
-            loadRandom: '',
-            loadSignature: '',
             showSpin: false
         }
     },
@@ -63,19 +60,7 @@ export default {
             .then(function(result) {
                 console.log('load wasm successed: ', result)
                 go.run(result.instance);
-                self.loadRandom = self.generatekey(32, false);
-
-                // webAuthn login
-                self.$refs.webauthn.webLogin(self.walletAddress, function() {
-                    self.initWeb3();
-                }, function() {
-                    // webAuthn register
-                    self.$refs.webauthn.webRegister(self.walletAddress, function(){
-                        self.$refs.webauthn.webLogin(self.walletAddress, function() {
-                            self.initWeb3();
-                        });
-                    });
-                });
+                self.initWeb3();
             })
         },
         onAccountChanged(action, network, address) {
@@ -94,48 +79,49 @@ export default {
         },
         initWeb3() {
             let self = this;
-            self.signTypedData(self.loadRandom, function(sig) {
+            let random = self.generatekey(32, false);
+            self.signTypedData(random, function(sig) {
                 var loadParams = [];
                 loadParams.push(sig);
-                loadParams.push(Web3.utils.asciiToHex(self.loadRandom));
-                self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (result) {
-                    console.log('selfweb3 load from contract successed: ', result);
+                loadParams.push(Web3.utils.asciiToHex(random));
+                self.$refs.walletPanel.Execute("call", "Web3Public", self.walletAddress, 0, loadParams, function (webPublicResult) {
+                    console.log('web3 contract: Web3Public successed: ', webPublicResult);
+                    let recoverID = Web3.utils.hexToAscii(loadResult['recoverID']);
+                    let web3Public = Web3.utils.hexToAscii(loadResult['web3Public']);
                     self.$refs.privatePanel.hasRegisted = true;
                     self.enableSpin(false);
-                    let web3Key = Web3.utils.hexToAscii(result['web3Key']);
-                    let recoverID = Web3.utils.hexToAscii(result['recoverID']);
-                    let web3Public = Web3.utils.hexToAscii(result['web3Public']);
-                    self.initBackend(recoverID, web3Key, web3Public);
+                    self.initBackend(recoverID, web3Public);
                 }, function (err) {
                     self.enableSpin(false);
-                    self.$Message.error('selfWeb3 check from contract failed');
-                    self.initBackend('', '', '');
+                    self.$Message.error('web3 contract: Web3Public failed');
+                    self.initBackend('');
                 });
             })
         },
-        initBackend(recoverID, web3Key, web3PublicKey) {
+        initBackend(recoverID, web3Public) {
             let self = this;
             let response = {};
             WasmPublic(function(wasmResponse) {
                 let queryMap = {};
-                queryMap['kind'] = "selfweb3.web2Data";
+                queryMap['kind'] = "web2Data";
+                queryMap['params'] = "initWeb2";
                 queryMap['userID'] = self.walletAddress;
                 queryMap['public'] = JSON.parse(wasmResponse)['Data'];
                 self.wasmPublic = JSON.parse(wasmResponse)['Data'];
                 self.httpGet("/api/datas/load", queryMap, function(response) {
                     if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                        self.$Message.error('web2 load datas failed: ', response.data['Error']);
+                        self.$Message.error('load datas from web2 service failed: ', response.data['Error']);
                     } else {
                         let inputWeb2Key = "";
                         let web2Response = response.data['Data'];
-                        WasmInit(self.walletAddress, inputWeb2Key, web2Response['Web2NetPublic'], web2Response['Web2Datas'], function(initResponse) {
+                        WasmInit(self.walletAddress, inputWeb2Key, web2Response['Web2NetPublic'], web2Response['Web2Data'], function(initResponse) {
                             let wasmResp = {};
                             wasmResp['data'] = JSON.parse(initResponse);
                             if (wasmResp.data['Error'] !== '' && wasmResp.data['Error'] !== null && wasmResp.data['Error'] !== undefined) {
                                 self.wasmCallback("Init", response.data['Error'], false);
                             } else {
-                                console.log('selfweb3 init web2 successed: ', wasmResp.data['Data']);
-                                self.$refs.privatePanel.init(recoverID, web3Key, web3PublicKey);
+                                console.log('backend init successed: ', wasmResp.data['Data']);
+                                self.$refs.privatePanel.init(recoverID, web3Public);
                             }
                         });
                     }
