@@ -24,10 +24,13 @@
                     <div style="margin: 10px;">
                         <h2 style="margin-bottom: 3px;">SelfWeb3</h2>
                         <Button :disabled="hasRegisted" @click="modalMode = 'register'; popModal = true" type="primary" style="margin: 10px;">Regist</Button>
-                        <Button :disabled ="!hasRegisted" @click="beforeRecover()" type="primary" style="margin: 10px;">Recover</Button>
+                        <!-- <Button :disabled ="!hasRegisted" @click="beforeRecover()" type="primary" style="margin: 10px;">Recover</Button> -->
+                        <Select v-model="resetKind" style="width:90px; text-align: center;" placeholder="Reset" @on-select="beforeRecover">
+                            <Option value="TOTP">TOTP</Option>
+                            <Option disabled value="Wallet">Wallet</Option>
+                            <Option disabled value="Web2Key">Web2Key</Option>
+                        </Select>
                         <Button :disabled ="!hasRegisted" @click="executeAction('SelfVault')" type="primary" style="margin: 10px;">SelfVault</Button>
-                        <!-- <Button :disabled ="!hasRegisted || web3Key === ''" @click="logout()" type="primary" style="margin: 10px;">Logout</Button> -->
-                        <!-- <Button :disabled ="!hasRegisted || web3Key === ''" @click="executeAction('cryptoPanel', '')" type="primary" style="margin: 10px;">Encrypt-Decrypt</Button> -->
                         <Table border style="margin-top: 8px;" no-data-text="empty key/value list" :columns="items.columns" :data="items.data"></Table>
                     </div>
                     <VueQrcode v-if="qrcodeUrl !== ''" :value="qrcodeUrl" :options="{ width: 150 }" />
@@ -115,6 +118,7 @@ export default {
                 ],
                 data:[]
             },
+            resetKind: '',
 
             modelKey: '',
             modelValue: '',
@@ -348,11 +352,12 @@ export default {
         },
         showQRcode(totpKey) {
             // Google authenticator doesn't like equal signs
-            var walletAddress = this.$parent.getSelf().getWalletAddress();
-            let walletAddr = walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
+            let userID = this.$parent.getSelf().selfID;
+            // let walletAddress = this.$parent.getSelf().getWalletAddress();
+            // let walletAddr = walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
 
             // to create a URI for a qr code (change totp to hotp if using hotp)
-            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + walletAddr;
+            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + userID;
             this.qrcodeUrl = 'otpauth://totp/' + totpName + '?secret=' + totpKey.replace(/=/g,'');
         },
         pageWidth(){

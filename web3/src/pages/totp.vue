@@ -50,7 +50,7 @@
 </style>
 <template>
     <div class="otp-wrapper otp-event">
-        <h2 style="text-align: center; margin-bottom: 10px;">Google Authenticator</h2>
+        <h2 style="text-align: center; margin-bottom: 10px;">TOTP Authenticator</h2>
         <form id="verifyForm" method="post" action="/api/auth/verify" class="otp-container">
             <input type="tel" id="digits-1" class="digits" maxlength="1" autocomplete="off" autofocus="true">
             <input type="tel" id="digits-2" class="digits" maxlength="1" autocomplete="off">
@@ -168,10 +168,10 @@ export default {
                         self.reload();
                         return;
                     }
-                    self.$Message.error('google authenticator verify failed');
+                    self.$Message.error('TOTP authenticator verify failed');
                     self.$parent.getSelf().afterVerify(false, '');
                 } else {
-                    self.$Message.success('google authenticator verify successed');
+                    self.$Message.success('TOTP authenticator verify successed');
                     self.$parent.getSelf().afterVerify(true, response.data['Data']);
                 }
             })
