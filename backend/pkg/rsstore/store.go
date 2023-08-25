@@ -11,6 +11,10 @@ import (
 
 var g_db *db_bolt
 
+func Store() *db_bolt {
+	return g_db
+}
+
 func InitStore(path string) error {
 	db, err := boltDBInit(path)
 	if err != nil {

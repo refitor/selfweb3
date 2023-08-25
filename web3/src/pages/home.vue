@@ -47,8 +47,8 @@
             <!--Input v-if="modalMode === 'verify'" v-model="modelValue" type="text"><span slot="prepend" style="margin-top: 10px;">Value</span></Input-->
             <div style="text-align: center; margin-top: 15px;">
                 <Button v-if="modalMode === 'register'" type="primary" @click="register()" style="margin-right: 10px;">Confirm</Button>
-                <Button v-if="modalMode === 'recover'" type="primary" @click="recover()" style="margin-right: 10px;">Confirm</Button>
-                <Button v-if="modalMode === 'verify'" type="primary" @click="afterRecover()" style="margin-right: 10px;">Confirm</Button>
+                <Button v-if="modalMode === 'recover'" type="primary" @click="emailSend()" style="margin-right: 10px;">Confirm</Button>
+                <Button v-if="modalMode === 'verify'" type="primary" @click="emailVerify()" style="margin-right: 10px;">Confirm</Button>
                 <Button @click="popModal = false; modalReadonly = false;">Cancel</Button>
             </div>
         </Modal>
@@ -210,7 +210,7 @@ export default {
             self.modalMode = 'recover';
             self.popModal = true;
         },
-        recover() {
+        emailSend() {
             let self = this;
             if (this.modelKey === '') {
                 this.$Message.error('pushID must be non-empty');
@@ -235,6 +235,7 @@ export default {
                     self.$parent.getSelf().httpPost("/api/datas/forward", formdata, function(forwardResponse) {
                         if (forwardResponse.data['Error'] == '') {
                             self.$Message.success('email push successed for recovery');
+                            self.$parent.getSelf().enableSpin(false);
                             self.resetModal();
                             self.modalMode = 'verify';
                             self.popModal = true;
@@ -245,7 +246,7 @@ export default {
                 }
             })
         },
-        afterRecover() {
+        emailVerify() {
             let self = this;
             if (this.modelKey === '') {
                 this.$Message.error('encrypted privateKey must be non-empty');
@@ -253,26 +254,21 @@ export default {
             }
             this.popModal = false; 
 
-            let response = {};
-            let recoverMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Public": self.web3Public};
+            let selfID = self.$parent.getSelf().selfID;
             let userID = self.$parent.getSelf().getWalletAddress();
-            WasmVerify(this.$parent.getSelf().getWalletAddress(), this.modelKey, 'email', 'verify', JSON.stringify(recoverMap), function(wasmResponse) {
-                response['data'] = JSON.parse(wasmResponse);
-                console.log('ResetTOTPKey: ', response)
-                if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                    self.$parent.getSelf().wasmCallback("WasmVerify", response.data['Error'], false);
-                } else {
-                    self.$parent.getSelf().enableSpin(false);
-                    // 邮箱校验成功后获取到WebAthnKey, 触发webAuthnLogin
-                    // 流程: WebAuthnKey获取 ===> webAuthnLogin ===> /api/datas/store ===> TOTP QRCode
-                    // TODO: 进入dapp的时候触发webAuthn校验，从合约提取web3Key, 解密出webAuthnKey完成webAuthn校验
-                    self.relationVerify(false, true, response.data['Data']['WebAuthnKey'], function() {
-                        self.storeWeb2Data(userID, '', response.data['Data']['Web2Data'], response.data['Data']['QRCode']);
-                    }, function() {
-                        self.$Message.error('Can not init SelfVault with relationVerify failed');
+            if (self.resetKind === "TOTP") {
+                let resetMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Public": self.web3Public};
+                self.verifyEmail(this.modelKey, resetMap, function(wasmEmailResponse) {
+                    let zkParams = [];
+                    self.relationVerify(false, true, wasmEmailResponse, zkParams, function(){
+                        self.storeWeb2Data(userID, '', wasmEmailResponse['Web2Data'], wasmEmailResponse['QRCode']);
                     })
-                }
-            })
+                })
+            } else if (self.resetKind === "Wallet") {
+                console.log(self.resetKind)
+            } else if (self.resetKind === "Web2Key") {
+                console.log(self.resetKind)
+            }
         },
         executeAction(name, params) {
             let self = this;
@@ -280,7 +276,7 @@ export default {
             if (name === 'SelfVault') {
                 // TOTP校验成功后获取到WebAuthnKey, 触发webAuthnLogin
                 // 流程: WebAuthnKey获取 ===> webAuthnLogin ===> switchPanel
-                self.relationVerify(true, true, '', function() {
+                self.relationVerify(true, true, '', [], function() {
                     self.$parent.getSelf().afterVerifyFunc = null;
                     self.$parent.getSelf().afterVerify(true, '', name)
                 }, function() {
@@ -311,18 +307,33 @@ export default {
                 }
             })
         },
+        verifyEmail(code, emailMap, callback) {
+            let self = this;
+            let response = {};
+            let userID = self.$parent.getSelf().getWalletAddress();
+            WasmVerify(userID, code, 'email', JSON.stringify(emailMap), function(wasmResponse) {
+                let response = JSON.parse(wasmResponse);
+                console.log('verifyEmail: ', response)
+                if (response['Error'] !== '' && response['Error'] !== null && response['Error'] !== undefined) {
+                    self.$parent.getSelf().wasmCallback("WasmVerify", response['Error'], false);
+                } else {
+                    if (callback !== undefined && callback !== null) callback(response['Data']);
+                }
+            })
+        },
         // 关联验证流程: web3合约: 钱包签名校验(提取web3Public) ---> TOTP校验 ---> web3合约: zk证明校验, 钱包签名校验(提取web3Key) ---> webAuthn登录校验
-        relationVerify(bTOTP, bWebAuthn, webAuthnKey, callback, failed) {
+        relationVerify(bTOTP, bWebAuthn, wasmEmailResponse, zkProofParams, callback, failed) {
             let self = this;
             let userID = self.$parent.getSelf().getWalletAddress();
             let verifyWebAuthn = function(zkParams) {
+                // 关联性webAuthn校验，依赖zkParams链上校验提取web3Key
                 let loadParams = [];
                 loadParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
                 // TODO: 加载web3Key相关数据需要依赖TOTP校验后生成的ZK证明，送进合约校验
                 self.$parent.getSelf().$refs.walletPanel.Execute("call", "Web3Key", userID, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Load from contract successed: ', loadResult);
                     let web3Map = {"method": "WebAuthnKey", "web3Key": Web3.utils.hexToAscii(loadResult), "web3Public": self.web3Public};
-                    WasmVerify(userID, '000000', 'TOTP', 'RelationVerify', JSON.stringify(web3Map), function(wasmWebAuthnResponse) {
+                    WasmHandle(userID, JSON.stringify(web3Map), function(wasmWebAuthnResponse) {
                         self.$parent.getSelf().$refs.webauthn.webLogin(self.$parent.getSelf().getWalletAddress(), JSON.parse(wasmWebAuthnResponse)['Data'], function() {
                             if (callback !== undefined && callback !== null) callback();
                         }, function() {
@@ -336,18 +347,18 @@ export default {
             }
             
             if (bTOTP === true) {
-                let web3Map = {"method": "RelationVerify", "web3Key": '', "web3Public": self.web3Public};
+                let web3Map = {"method": "RelationVerify", "web3Key": '', "web3Public": self.web3Public, "random": wasmEmailResponse};
                 self.$parent.getSelf().switchPanel('RelationVerify', '', JSON.stringify(web3Map), function(wasmTOTPResponse){
                     if (bWebAuthn === true) {
                         // TODO: generate zk-proof
                         let zkParams = [];
                         verifyWebAuthn(zkParams);
                     } else {
-                        if (callback !== undefined && callback !== null) callback();
+                        if (callback !== undefined && callback !== null) callback(wasmTOTPResponse);
                     }
                 })
             } else if (bWebAuthn === true) {
-                verifyWebAuthn([]);
+                verifyWebAuthn(zkProofParams);
             }
         },
         showQRcode(totpKey) {

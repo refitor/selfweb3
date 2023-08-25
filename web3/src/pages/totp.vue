@@ -71,16 +71,14 @@ export default {
     inject: ["reload"],
     data() {
         return {
-            action: '',
-            afterVerifyContent: ''
+            verifyParams: ''
         }
     },
     mounted: function() {
     },
     methods: {
-        init(action, afterVerifyContent) {
-            this.action = action;
-            this.afterVerifyContent = afterVerifyContent;
+        init(verifyParams) {
+            this.verifyParams = verifyParams;
             const params = new URLSearchParams(window.location.search);
             $('.otp-event').each(function() {
                 var $input = $(this).find('.digits');
@@ -161,7 +159,7 @@ export default {
 
             // wasm
             let response = {};
-            WasmVerify(this.$parent.getSelf().getWalletAddress(), inputCode, 'TOTP', this.action, this.afterVerifyContent, function(wasmResponse) {
+            WasmVerify(this.$parent.getSelf().getWalletAddress(), inputCode, 'TOTP', this.verifyParams, function(wasmResponse) {
                 response['data'] = JSON.parse(wasmResponse);
                 if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
                     if (response.data['Error'] === 'reload') {

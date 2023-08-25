@@ -31,7 +31,7 @@ func InitWebAuthn(rpOrigin string) error {
 	})
 
 	// Mandatory verification by mobile phone or tablet cross-platform terminal device
-	w.Config.AuthenticatorSelection.AuthenticatorAttachment = protocol.CrossPlatform
+	// w.Config.AuthenticatorSelection.AuthenticatorAttachment = protocol.CrossPlatform
 
 	wauthn = w
 	return err

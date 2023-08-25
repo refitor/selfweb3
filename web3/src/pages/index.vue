@@ -78,12 +78,13 @@ export default {
                 window.location.reload();
             }
         },
-        initWeb3() {
+        initWeb3(selfID) {
             let self = this;
+            this.selfID = selfID;
             let message = 'SelfWeb3 Init: ' + (new Date()).getTime();
             self.signTypedData(message, function(sig) {
                 var loadParams = [];
-                loadParams.push(Web3.utils.asciiToHex(self.selfID));
+                loadParams.push(Web3.utils.asciiToHex(selfID));
                 loadParams.push(sig);
                 loadParams.push(Web3.utils.asciiToHex(message));
                 self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (loadResult) {
@@ -115,7 +116,6 @@ export default {
                     } else {
                         let inputWeb2Key = "";
                         let web2Response = response.data['Data'];
-                        self.selfID = web2Response['SelfID'];
                         WasmInit(self.walletAddress, inputWeb2Key, web2Response['Web2NetPublic'], web2Response['Web2Data'], function(initResponse) {
                             let wasmResp = {};
                             wasmResp['data'] = JSON.parse(initResponse);
@@ -123,7 +123,7 @@ export default {
                                 self.wasmCallback("Init", response.data['Error'], false);
                             } else {
                                 console.log('backend init successed: ', wasmResp.data['Data']);
-                                self.initWeb3();
+                                self.initWeb3(web2Response['SelfID']);
                             }
                         });
                     }
@@ -149,7 +149,7 @@ export default {
             let self = this;
             this.showTOTP = true;
             this.$nextTick(function(){
-                self.$refs.totpPanel.init(action, panelInitParam);
+                self.$refs.totpPanel.init(panelInitParam);
             });
         },
         afterVerify(hasVerified, panelInitParam, optionPanelName) {

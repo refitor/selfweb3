@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	c_datas_kind_web2Data = "web2Data"
+	c_datas_kind_web2Data   = "web2Data"
+	c_datas_kind_bindWallet = "bindWallet"
 )
 
 func RouterInit(router *httprouter.Router) {
@@ -54,6 +55,8 @@ func webDatasStore(w http.ResponseWriter, r *http.Request) {
 	switch kind {
 	case c_datas_kind_web2Data:
 		handleErr = UserStoreWeb2Data(rsweb.WebParams(r).Get("userID"), rsweb.WebParams(r).Get("recoverID"), rsweb.WebParams(r).Get("params"))
+	case c_datas_kind_bindWallet:
+		handleErr = UserBindWallet(rsweb.WebParams(r).Get("oldWallet"), rsweb.WebParams(r).Get("newWallet"))
 	default:
 		rsweb.ResponseError(w, r, "unsupport store kind: "+kind)
 	}
@@ -205,6 +208,9 @@ func WebAuthnFinishLogin(w http.ResponseWriter, r *http.Request) {
 
 	// // push user to session
 	// PushToSession(w, r, C_Session_User, GetUser(userID))
+
+	// callback after webAuthnLogin
+	UserAfterWebAuthnLogin()
 
 	rsweb.ResponseOk(w, r, response)
 }

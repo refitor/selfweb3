@@ -24,12 +24,11 @@ const (
 )
 
 type Web3User struct {
-	QRCode      string
-	Web2Data    string
-	Web3Key     string
-	RecoverID   string
-	Web3Public  string
-	WebAuthnKey string
+	QRCode     string
+	Web2Data   string
+	Web3Key    string
+	RecoverID  string
+	Web3Public string
 }
 
 type User struct {
@@ -188,9 +187,10 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 }
 
 func (p *User) ResetWeb2Key(kind, random, web2Key string) (any, error) {
-	if kind == "TOTP" {
+	if kind == "email" {
+		emailRandom := rscrypto.GetRandom(6, false)
 		SetCache("ResetWeb2Key", rscrypto.GetRandom(6, false), true)
-		return "successed", nil
+		return emailRandom, nil
 	}
 	if web2Key == "" || web2Key == string(p.Web2Key) {
 		return nil, errors.New("invalid input web2Key")
@@ -232,14 +232,9 @@ func (p *User) ResetTOTPKey(recoverID, encryptedRecoverID string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	webAuthnKey, err := Web2DecryptWebAuthnKey(p)
-	if err != nil {
-		return nil, err
-	}
 	web3User := &Web3User{
-		QRCode:      qrcode,
-		Web2Data:    web2Data,
-		WebAuthnKey: webAuthnKey,
+		QRCode:   qrcode,
+		Web2Data: web2Data,
 	}
 	LogDebugf("ResetTOTPKey web3User: %+v", web3User)
 	return web3User, nil

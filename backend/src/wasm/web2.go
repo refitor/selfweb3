@@ -15,9 +15,6 @@ func Web2Init() (*ecdsa.PrivateKey, error) {
 }
 
 func Web2EncryptWeb2Data(user *User) (string, error) {
-	if len(user.Web3Key) == 0 {
-		return "", errors.New("Web2EncodePrivate failed with invalid web3Key")
-	}
 	wd2 := &pkg.Web2Data{
 		WebAuthnKey: string(user.WebAuthnKey),
 		Web2Private: encodeWeb2Private(user),

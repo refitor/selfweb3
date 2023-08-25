@@ -126,22 +126,40 @@ func WasmAuthorizeCode(datas ...string) *Response {
 }
 
 // @request userID: wallet address
-// @request kind: kind need verify for dynamic authorization， such as TOTP, email, etc.
-// @request code: Verification code for dynamic authorization, such as TOTP, email, mobile phone verification codes, etc
-// @request action is used to specify the action to be performed, relying on the dynamic authorization verification to pass
 // @request params: Optional, specific business parameters for the next step of the process after dynamic authorization is successful
 // @response business data or error
-const (
-	c_action_RelationVerify = "RelationVerify"
-)
-
-func WasmVerify(datas ...string) *Response {
-	LogDebugf("WasmVerify request: %v", datas)
-	if len(datas) < 4 || datas[0] == "" || datas[1] == "" || datas[2] == "" {
+func WasmHandle(datas ...string) *Response {
+	LogDebugf("WasmHandle request: %v", datas)
+	if len(datas) < 1 || datas[0] == "" {
 		return wasmResponse(nil, c_Error_InvalidParams)
 	}
-	userID, code, kind, action := datas[0], datas[1], datas[2], datas[3]
-	LogDebugln(userID, code, kind, action, datas[len(datas)-1])
+	userID := datas[0]
+	LogDebugln(userID, datas[len(datas)-1])
+
+	user := GetUser(userID)
+	if user == nil {
+		wasmResponse(nil, c_Error_Denied)
+	}
+
+	responseData, err := wasmHandle("", user, datas[len(datas)-1])
+	if err != nil {
+		return wasmResponse(nil, err.Error())
+	}
+	return wasmResponse(responseData, "")
+}
+
+// @request userID: wallet address
+// @request kind: kind need verify for dynamic authorization， such as TOTP, email, etc.
+// @request code: Verification code for dynamic authorization, such as TOTP, email, mobile phone verification codes, etc
+// @request params: Optional, specific business parameters for the next step of the process after dynamic authorization is successful
+// @response business data or error
+func WasmVerify(datas ...string) *Response {
+	LogDebugf("WasmVerify request: %v", datas)
+	if len(datas) < 3 || datas[0] == "" || datas[1] == "" || datas[2] == "" {
+		return wasmResponse(nil, c_Error_InvalidParams)
+	}
+	userID, code, kind := datas[0], datas[1], datas[2]
+	LogDebugln(userID, code, kind, datas[len(datas)-1])
 
 	user := GetUser(userID)
 	if user == nil {
@@ -153,16 +171,11 @@ func WasmVerify(datas ...string) *Response {
 	var responseData any
 	switch kind {
 	case "TOTP":
-		if action == c_action_RelationVerify {
-			responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1])
+		if responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1]); verifyErr != nil {
 			break
-		} else {
-			if verifyErr = user.VerifyTOTP(code); verifyErr != nil {
-				break
-			}
-			if responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1]); verifyErr != nil {
-				break
-			}
+		}
+		if verifyErr = user.VerifyTOTP(code); verifyErr != nil {
+			break
 		}
 	case "email":
 		authorizeCache := GetCache("Authorize-"+userID, false, nil)
@@ -223,7 +236,7 @@ func wasmHandle(kind string, user *User, params ...string) (handleResult any, ha
 		}
 		return user.ResetTOTPKey(params[len(params)-1], paramMap[c_param_recoverID])
 	case c_method_ResetWeb2Key:
-		return user.ResetWeb2Key(kind, paramMap[c_param_random], paramMap[c_param_web2Key])
+		return user.ResetWeb2Key(params[len(params)-1], paramMap[c_param_random], paramMap[c_param_web2Key])
 	case c_method_Web2Data:
 		return Web2EncryptWeb2Data(user)
 	case c_method_WebAuthnKey:

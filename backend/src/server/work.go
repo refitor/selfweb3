@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 
 	"selfweb3/backend/pkg/rsauth"
 	"selfweb3/backend/pkg/rscrypto"
@@ -58,9 +57,6 @@ func Run(ctx context.Context, fs *embed.FS) {
 }
 
 type Worker struct {
-	cache     sync.Map
-	config    sync.Map
-	memvar    sync.Map
 	public    *ecdsa.PublicKey
 	private   *ecdsa.PrivateKey
 	WebPublic *ecdsa.PublicKey
@@ -78,7 +74,7 @@ func (p *Worker) Init() {
 
 	// user
 	UserSaveToStore = func(key string, val any) error {
-		return rsstore.SaveToDB(&vWorker.cache, C_Store_User, key, val)
+		return rsstore.SaveToDB(rsstore.Cache(), C_Store_User, key, val)
 	}
 	UserGetFromStore = func(key string, ptrObject any) error {
 		return rsstore.LoadFromDB(C_Store_User, key, ptrObject)
@@ -95,7 +91,7 @@ func (p *Worker) Init() {
 			return err
 		}
 		user.WebauthnUser = rscrypto.AesDecryptECB(wbuf, []byte(encryptKey))
-		return rsstore.SaveToDB(&vWorker.cache, C_Store_User, key, user)
+		return rsstore.SaveToDB(rsstore.Cache(), C_Store_User, key, user)
 	}
 	WebauthnGetFromStore = func(key, decryptKey string, ptrObject any) error {
 		user := &User{}
@@ -117,47 +113,6 @@ func newWorker() *Worker {
 	s.private = private
 	s.public = &private.PublicKey
 	return s
-}
-
-func SetVar(key string, val interface{}, bForce bool) error {
-	if !bForce {
-		if _, ok := vWorker.memvar.Load(key); ok {
-			return fmt.Errorf("cache data already exists, key: %v", key)
-		}
-	}
-	vWorker.memvar.Store(key, val)
-	return nil
-}
-
-// delete: beforeDelleteFunc return true
-func GetVar(key string, bDelete bool, beforeDeleteFunc func(v interface{}) bool) interface{} {
-	val, _ := vWorker.memvar.Load(key)
-	if beforeDeleteFunc != nil {
-		if beforeDeleteFunc(val) {
-			vWorker.memvar.Delete(key)
-		}
-	} else if bDelete {
-		vWorker.memvar.Delete(key)
-	}
-	return val
-}
-
-func SetConf(key, val string) {
-	vWorker.config.Store(key, val)
-}
-
-func GetConf(key string) string {
-	val, _ := vWorker.config.Load(key)
-	return fmt.Sprintf("%v", val)
-}
-
-func GetCache(key any) any {
-	v, _ := vWorker.cache.Load(key)
-	return v
-}
-
-func SetCache(key, val any) {
-	vWorker.cache.Store(key, val)
 }
 
 func FatalCheck(err error) {

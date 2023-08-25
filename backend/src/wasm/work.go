@@ -27,7 +27,8 @@ func Init() *Worker {
 }
 
 func newWorker() *Worker {
-	// rslog.SetDepth(6)
+	// rslog.SetLevel("debug")
+	// rslog.SetDepth(5)
 	s := new(Worker)
 	private, ecdsaErr := crypto.GenerateKey()
 	FatalCheck(ecdsaErr)
@@ -117,11 +118,9 @@ func WebError(err error, webErr string) string {
 }
 
 func LogDebugln(datas ...interface{}) {
-	// rslog.Info(datas...)
-	// fmt.Println(datas...)
+	// rslog.Debug(datas...)
 }
 
 func LogDebugf(format string, datas ...interface{}) {
-	// rslog.Infof(format, datas...)
-	// fmt.Printf(format+"\n", datas...)
+	// rslog.Debugf(format, datas...)
 }

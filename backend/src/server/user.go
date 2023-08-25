@@ -7,6 +7,7 @@ import (
 	"selfweb3/backend/pkg/rsauth"
 	"selfweb3/backend/pkg/rscrypto"
 	"selfweb3/backend/pkg/rsstore"
+	"strings"
 
 	"github.com/refitor/rslog"
 	uuid "github.com/satori/go.uuid"
@@ -14,7 +15,9 @@ import (
 )
 
 const (
-	C_Store_User = "user"
+	C_Store_User                     = "user"
+	c_cache_webAuthnLogin            = "webAuthnLogin"
+	c_cache_webAuthnLogin_bindWallet = "webAuthnLogin_bindWallet"
 )
 
 var (
@@ -136,4 +139,48 @@ func SendEmailToUser(title, email, content string) error {
 	}
 	<-sendCh
 	return nil
+}
+
+func UserBindWallet(oldWallet, newWallet string) error {
+	// load user
+	user := &User{}
+	if err := rsstore.LoadFromDB(C_Store_User, oldWallet, user); err != nil {
+		return err
+	}
+
+	// cache
+	afterWebAuthnLoginBind := func(key, val any) {
+		if err := UserSaveToStore(Str(key), val.([]any)[1]); err != nil {
+			rslog.Errorf("BindWallet store failed, key: %s, UserSaveToStore: %s", key, err.Error())
+		} else {
+			if err := rsstore.Store().DBDel(C_Store_User, Str(val.([]any)[2])); err != nil {
+				rslog.Errorf("BindWallet delete failed, key: %s, DBDel: %s", key, err.Error())
+				// TODO: 采集异常情况，根据策略处理，比如定时，重启或者管理员手动
+			}
+		}
+	}
+	cacheValue := []any{
+		afterWebAuthnLoginBind,
+		user,
+		oldWallet,
+	}
+	cacheKey := fmt.Sprintf("%s%s", c_cache_webAuthnLogin, newWallet)
+	rsstore.SetCacheByTime(cacheKey, cacheValue, true, 300, func(key, val any) bool {
+		rslog.Errorf("BindWallet failed with 300s timeout, key: %s, val: %s", key, val)
+		return true
+	})
+	return nil
+}
+
+func UserAfterWebAuthnLogin() {
+	rsstore.Cache().Range(func(key, value any) bool {
+		if strings.HasPrefix(Str(key), c_cache_webAuthnLogin) {
+			if valList, ok := value.([]any); ok && len(valList) >= 1 {
+				callback := valList[0].(func(any, any))
+				callback(strings.TrimPrefix(Str(key), c_cache_webAuthnLogin), value)
+				return false
+			}
+		}
+		return true
+	})
 }
