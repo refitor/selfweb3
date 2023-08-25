@@ -79,11 +79,11 @@ export default {
         },
         initWeb3() {
             let self = this;
-            let random = self.generatekey(32, false);
-            self.signTypedData(random, function(sig) {
+            let message = 'SelfWeb3 Init: ' + (new Date()).getTime();
+            self.signTypedData(message, function(sig) {
                 var loadParams = [];
                 loadParams.push(sig);
-                loadParams.push(Web3.utils.asciiToHex(random));
+                loadParams.push(Web3.utils.asciiToHex(message));
                 self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Web3Public successed: ', loadResult);
                     let recoverID = Web3.utils.hexToAscii(loadResult['recoverID']);
@@ -168,7 +168,7 @@ export default {
             var msgParams = [
                 {
                     type: 'string',
-                    name: 'Message',
+                    name: 'Action',
                     value: msg
                 }
             ]
