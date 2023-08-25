@@ -29,6 +29,10 @@ func InitWebAuthn(rpOrigin string) error {
 		RPOrigin:      rpOrigin,                   // The origin URL for WebAuthn requests
 		RPIcon:        "https://duo.com/logo.png", // Optional icon URL for your site
 	})
+
+	// Mandatory verification by mobile phone or tablet cross-platform terminal device
+	w.Config.AuthenticatorSelection.AuthenticatorAttachment = protocol.CrossPlatform
+
 	wauthn = w
 	return err
 }
