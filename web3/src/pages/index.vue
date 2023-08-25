@@ -84,8 +84,8 @@ export default {
                 var loadParams = [];
                 loadParams.push(sig);
                 loadParams.push(Web3.utils.asciiToHex(random));
-                self.$refs.walletPanel.Execute("call", "Web3Public", self.walletAddress, 0, loadParams, function (webPublicResult) {
-                    console.log('web3 contract: Web3Public successed: ', webPublicResult);
+                self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (loadResult) {
+                    console.log('web3 contract: Web3Public successed: ', loadResult);
                     let recoverID = Web3.utils.hexToAscii(loadResult['recoverID']);
                     let web3Public = Web3.utils.hexToAscii(loadResult['web3Public']);
                     self.$refs.privatePanel.hasRegisted = true;

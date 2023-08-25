@@ -9,6 +9,8 @@ import (
 	"selfweb3/backend/pkg/rsstore"
 
 	"github.com/refitor/rslog"
+	uuid "github.com/satori/go.uuid"
+	"github.com/twmb/murmur3"
 )
 
 const (
@@ -23,12 +25,19 @@ var (
 type User struct {
 	pkg.Web2Data
 
+	SelfID       string          `json:"selfID"`
 	RecoverID    []byte          `json:"recoverID"`
 	WebauthnUser json.RawMessage `json:"WebauthnUser"`
 }
 
 func CreateUser(userID string) (*User, error) {
+	// generate userID
+	uid := uuid.NewV1()
+	hash := murmur3.Sum32([]byte(uid.String()))
+	selfID := fmt.Sprintf("%v", hash)
+
 	user := &User{}
+	user.SelfID = selfID
 	user.Web2Data.Web2Key = rscrypto.GetRandom(32, false)
 	rslog.Debugf("CreateUser successed: %+v", user)
 

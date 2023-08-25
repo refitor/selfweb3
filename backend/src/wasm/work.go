@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/refitor/rslog"
 )
 
 var (
@@ -27,7 +28,7 @@ func Init() *Worker {
 }
 
 func newWorker() *Worker {
-	// rslog.SetDepth(6)
+	rslog.SetDepth(6)
 	s := new(Worker)
 	private, ecdsaErr := crypto.GenerateKey()
 	FatalCheck(ecdsaErr)
@@ -117,11 +118,11 @@ func WebError(err error, webErr string) string {
 }
 
 func LogDebugln(datas ...interface{}) {
-	// rslog.Info(datas...)
+	rslog.Info(datas...)
 	// fmt.Println(datas...)
 }
 
 func LogDebugf(format string, datas ...interface{}) {
-	// rslog.Infof(format, datas...)
+	rslog.Infof(format, datas...)
 	// fmt.Printf(format+"\n", datas...)
 }

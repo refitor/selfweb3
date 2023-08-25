@@ -21,8 +21,7 @@ const (
 )
 
 type Web2Data struct {
-	Web2Key string
-
+	Web2Key     string
 	Payload     string
 	WebAuthnKey string
 	Web2Private string

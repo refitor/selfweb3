@@ -311,11 +311,9 @@ export default {
             let userID = self.$parent.getSelf().getWalletAddress();
             let verifyWebAuthn = function(loadParams) {
                 // TODO: 加载web3Key相关数据需要依赖TOTP校验后生成的ZK证明，送进合约校验
-                self.$parent.getSelf().$refs.walletPanel.Execute("call", "Load", userID, 0, loadParams, function (loadResult) {
+                self.$parent.getSelf().$refs.walletPanel.Execute("call", "Web3Key", userID, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Load from contract successed: ', loadResult);
-                    self.recoverID = Web3.utils.hexToAscii(loadResult['recoverID']);
-                    self.web3Key = Web3.utils.hexToAscii(loadResult['web3Key']);
-                    let web3Map = {"method": "WebAuthnKey", "web3Key": Web3.utils.hexToAscii(loadResult['web3Key']), "web3Public": self.web3Public};
+                    let web3Map = {"method": "WebAuthnKey", "web3Key": Web3.utils.hexToAscii(loadResult), "web3Public": self.web3Public};
                     WasmVerify(userID, '000000', 'TOTP', 'RelationVerify', JSON.stringify(web3Map), function(wasmWebAuthnResponse) {
                         self.$parent.getSelf().$refs.webauthn.webLogin(self.$parent.getSelf().getWalletAddress(), JSON.parse(wasmWebAuthnResponse)['Data'], function() {
                             if (callback !== undefined && callback !== null) callback();
