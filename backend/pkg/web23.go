@@ -10,14 +10,11 @@ import (
 )
 
 const (
-	C_Web2Key       = "Web2Key"
+	C_SelfID        = "SelfID"
 	C_Web2Data      = "Web2Data"
-	C_WebAuthnKey   = "WebAuthnKey"
-	C_Web2Private   = "Web2Private"
-	C_Web2NetPublic = "Web2NetPublic"
-
 	C_AuthorizeID   = "AuthorizeID"
 	C_AuthorizeCode = "AuthorizeCode"
+	C_Web2NetPublic = "Web2NetPublic"
 )
 
 type Web2Data struct {

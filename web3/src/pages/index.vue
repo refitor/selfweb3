@@ -28,6 +28,7 @@ export default {
     inject: ["reload"],
     data() {
         return {
+            selfID: '',
             connect: false,
             wasmPublic: '',
             walletAddress: '',
@@ -60,7 +61,7 @@ export default {
             .then(function(result) {
                 console.log('load wasm successed: ', result)
                 go.run(result.instance);
-                self.initWeb3();
+                self.initBackend();
             })
         },
         onAccountChanged(action, network, address) {
@@ -82,6 +83,7 @@ export default {
             let message = 'SelfWeb3 Init: ' + (new Date()).getTime();
             self.signTypedData(message, function(sig) {
                 var loadParams = [];
+                loadParams.push(Web3.utils.asciiToHex(self.selfID));
                 loadParams.push(sig);
                 loadParams.push(Web3.utils.asciiToHex(message));
                 self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (loadResult) {
@@ -90,15 +92,14 @@ export default {
                     let web3Public = Web3.utils.hexToAscii(loadResult['web3Public']);
                     self.$refs.privatePanel.hasRegisted = true;
                     self.enableSpin(false);
-                    self.initBackend(recoverID, web3Public);
+                    self.$refs.privatePanel.init(self.selfID, recoverID, web3Public);
                 }, function (err) {
                     self.enableSpin(false);
                     self.$Message.error('web3 contract: Web3Public failed');
-                    self.initBackend('');
                 });
             })
         },
-        initBackend(recoverID, web3Public) {
+        initBackend() {
             let self = this;
             let response = {};
             WasmPublic(function(wasmResponse) {
@@ -114,6 +115,7 @@ export default {
                     } else {
                         let inputWeb2Key = "";
                         let web2Response = response.data['Data'];
+                        self.selfID = web2Response['SelfID'];
                         WasmInit(self.walletAddress, inputWeb2Key, web2Response['Web2NetPublic'], web2Response['Web2Data'], function(initResponse) {
                             let wasmResp = {};
                             wasmResp['data'] = JSON.parse(initResponse);
@@ -121,7 +123,7 @@ export default {
                                 self.wasmCallback("Init", response.data['Error'], false);
                             } else {
                                 console.log('backend init successed: ', wasmResp.data['Data']);
-                                self.$refs.privatePanel.init(recoverID, web3Public);
+                                self.initWeb3();
                             }
                         });
                     }

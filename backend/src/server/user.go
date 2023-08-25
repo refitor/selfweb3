@@ -25,9 +25,9 @@ var (
 type User struct {
 	pkg.Web2Data
 
-	SelfID       string          `json:"selfID"`
-	RecoverID    []byte          `json:"recoverID"`
-	WebauthnUser json.RawMessage `json:"WebauthnUser"`
+	SelfID       string
+	RecoverID    []byte
+	WebauthnUser json.RawMessage
 }
 
 func CreateUser(userID string) (*User, error) {
@@ -89,14 +89,14 @@ func UserStoreWeb2Data(userID, recoverID, encryptWeb2Data string) error {
 	return nil
 }
 
-func UserLoadWeb2Data(userID, webPublic, params string) (any, error) {
+func UserLoadWeb2Data(userID, webPublic, params string) (string, any, error) {
 	rslog.Infof("before load user web2Data: %s, %s, %s", userID, webPublic, params)
 
 	// parse webPublic
 	if webPublic != "" {
 		publicKey, err := rscrypto.GetPublicKey(webPublic)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		vWorker.WebPublic = publicKey
 	}
@@ -107,21 +107,21 @@ func UserLoadWeb2Data(userID, webPublic, params string) (any, error) {
 		if params == "initWeb2" {
 			u, err := CreateUser(userID)
 			if err != nil {
-				return nil, err
+				return "", nil, err
 			}
 			user = u
 		} else {
-			return nil, err
+			return "", nil, err
 		}
 	}
 
 	// encrypt web2Data
 	web2Data, err := pkg.Web2EncodeEx(vWorker.private, webPublic, &user.Web2Data)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	rslog.Infof("load user web2Data successed: %s", web2Data)
-	return web2Data, nil
+	return user.SelfID, web2Data, nil
 }
 
 func SendEmailToUser(title, email, content string) error {

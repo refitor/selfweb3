@@ -69,12 +69,13 @@ func webDatasLoad(w http.ResponseWriter, r *http.Request) {
 	kind := rsweb.WebParams(r).Get("kind")
 	switch kind {
 	case c_datas_kind_web2Data:
-		web2Data, err := UserLoadWeb2Data(rsweb.WebParams(r).Get("userID"), rsweb.WebParams(r).Get("public"), rsweb.WebParams(r).Get("params"))
+		selfID, web2Data, err := UserLoadWeb2Data(rsweb.WebParams(r).Get("userID"), rsweb.WebParams(r).Get("public"), rsweb.WebParams(r).Get("params"))
 		if err != nil {
 			rsweb.ResponseError(w, r, rsweb.WebError(err, ""))
 			return
 		}
 		rsweb.ResponseOk(w, r, map[string]any{
+			pkg.C_SelfID:        selfID,
 			pkg.C_Web2Data:      web2Data,
 			pkg.C_Web2NetPublic: hexutil.Encode(crypto.CompressPubkey(vWorker.public)),
 		})

@@ -94,7 +94,7 @@ export default {
                         render: (h, params) => {
                             let btns = []
                             let self = this;
-                            let needView = true;//self.items.data[params.index]['key'] !== 'Wallet' && self.items.data[params.index]['key'] !== 'Contract';
+                            let needView = self.items.data[params.index]['data']['btnName'] !== undefined;
                             btns.push(h('Button', {
                                     props: {
                                         type: 'primary',
@@ -133,11 +133,12 @@ export default {
         openLink(url) {
             window.open(url, '_blank');
         },
-        init(recoverID, web3Public) {
+        init(selfID, recoverID, web3Public) {
             this.recoverID = recoverID;
             this.web3Public = web3Public;
+            this.addKV('SelfID', {'value': selfID}, true);
             const contractAddr = this.$parent.getSelf().getWallet().contractAddrMap[this.$parent.getSelf().getWallet().networkId];
-            this.addKV('Wallet', {'btnName': 'View', 'value': this.$parent.getSelf().getWalletAddress(), 'url': 'https://etherscan.io/token/' + this.$parent.getSelf().getWalletAddress()}, true);
+            this.addKV('Wallet', {'btnName': 'View', 'value': this.$parent.getSelf().getWalletAddress(), 'url': 'https://etherscan.io/token/' + this.$parent.getSelf().getWalletAddress()}, false);
             this.addKV('Contract', {'btnName': 'View', 'value': contractAddr, 'url': 'https://etherscan.io/token/' + contractAddr}, false);
             // this.addKV('Encrypt-Decrypt', {'value': this.$parent.getSelf().generatekey(16, false), 'btnName': 'Test'}, false);
             // this.addKV('SelfVault', {'value': contractAddr, 'btnName': 'Launch'}, false);
@@ -175,6 +176,7 @@ export default {
                     var web3Key = response.data['Data']['Web3Key'];
                     var recoverID = response.data['Data']['RecoverID'];
                     var web3Public = response.data['Data']['Web3Public'];
+                    registParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
                     registParams.push(Web3.utils.asciiToHex(recoverID));
                     registParams.push(Web3.utils.asciiToHex(web3Key));
                     registParams.push(Web3.utils.asciiToHex(web3Public));
@@ -309,7 +311,9 @@ export default {
         relationVerify(bTOTP, bWebAuthn, webAuthnKey, callback, failed) {
             let self = this;
             let userID = self.$parent.getSelf().getWalletAddress();
-            let verifyWebAuthn = function(loadParams) {
+            let verifyWebAuthn = function(zkParams) {
+                let loadParams = [];
+                loadParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
                 // TODO: 加载web3Key相关数据需要依赖TOTP校验后生成的ZK证明，送进合约校验
                 self.$parent.getSelf().$refs.walletPanel.Execute("call", "Web3Key", userID, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Load from contract successed: ', loadResult);
@@ -332,8 +336,8 @@ export default {
                 self.$parent.getSelf().switchPanel('RelationVerify', '', JSON.stringify(web3Map), function(wasmTOTPResponse){
                     if (bWebAuthn === true) {
                         // TODO: generate zk-proof
-                        let loadPrams = [];
-                        verifyWebAuthn(loadPrams);
+                        let zkParams = [];
+                        verifyWebAuthn(zkParams);
                     } else {
                         if (callback !== undefined && callback !== null) callback();
                     }

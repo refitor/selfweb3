@@ -25,7 +25,7 @@ export default {
             networkId: '',
             contractAddrMap: {
                 '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
-                '1': '0x78F1A8BB59bd6719cf756F567970BF21acB8C236',
+                '1': '0x4E808296CB42b675C780c20e3a477F9DA109f027',
             },
             contractABI: [
                 {
@@ -85,6 +85,11 @@ export default {
                     "inputs": [
                         {
                             "internalType": "bytes",
+                            "name": "userID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
                             "name": "signature",
                             "type": "bytes"
                         },
@@ -132,6 +137,39 @@ export default {
                     "inputs": [
                         {
                             "internalType": "bytes",
+                            "name": "userID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "wallet",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "signature",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "message",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "Rebind",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "userID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
                             "name": "recoverID",
                             "type": "bytes"
                         },
@@ -152,7 +190,13 @@ export default {
                     "type": "function"
                 },
                 {
-                    "inputs": [],
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "userID",
+                            "type": "bytes"
+                        }
+                    ],
                     "name": "Web3Key",
                     "outputs": [
                         {
