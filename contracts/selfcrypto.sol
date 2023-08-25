@@ -63,8 +63,8 @@ contract selfweb3 is Ownable {
      */
     function Load(bytes calldata userID, bytes calldata signature, bytes calldata message) view external returns (bytes memory recoverID, bytes memory web3Public) {
         SelfData memory sd = _getKV(userID);
-        require(_verify(signature, message) == sd.wallet, "permission denied");
         require(sd.web3Public.length != 0, "not registered yet");
+        require(_verify(signature, message) == sd.wallet, "permission denied");
         return (sd.recoverID, sd.web3Public);
     }
 

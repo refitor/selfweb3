@@ -23,5 +23,6 @@ selfweb3.db
 dist/
 vendor/
 selfweb3/
+rsweb/app/
 node_modules/
 web/public/wasm/selfweb3.wasm
