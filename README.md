@@ -1,5 +1,7 @@
 # selfweb3
 
+[简体中文][1]
+
 ### A web3 solution that provides privatization guarantees for high security and data ownership on the chain. Through mandatory dynamic authorization, one-to-one binding of user assets to itself instead of wallets, webAuthn + TOTP + zero-knowledge proof
 
 ## Contract
@@ -105,3 +107,5 @@ chmod +x ./build.sh
 ```
 ./selfweb3
 ```
+
+[1]: /docs/README-zh.md
