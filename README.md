@@ -8,7 +8,7 @@
 
 1. **Arbitrum Goerli, 421613: 0x7B6E05a55B1756f827F205BF454BF75288904ecF**
 
-## system structure
+## Architecture
 
 ![/docs/selfweb3.png](/docs/selfweb3.png)
 
