@@ -25,7 +25,7 @@ export default {
             networkId: '',
             contractAddrMap: {
                 '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
-                '1': '0x2C5489D378774691E5178411A34a739D6E92024E',
+                '1': '0xe603a62a62F024D8323c3b7BcacEbB87d179b61C',
                 '421613': '0x7B6E05a55B1756f827F205BF454BF75288904ecF'
             },
             contractABI: [

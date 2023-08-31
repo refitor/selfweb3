@@ -171,6 +171,7 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	// update user
 	p.Web3Key = []byte(web3Key)
 	p.Web3Public = &private.PublicKey
+	p.WebAuthnKey = []byte(hexutil.Encode(rscrypto.AesEncryptECB([]byte(rscrypto.GetRandom(32, false)), p.Web3Key)))
 
 	qrcode, err := p.InitTOTPKey()
 	if err != nil {

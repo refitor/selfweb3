@@ -85,7 +85,7 @@ func UserStoreWeb2Data(userID, recoverID, encryptWeb2Data string) error {
 	if err := UserSaveToStore(userID, user); err != nil {
 		return err
 	}
-	if err := SendEmailToUser("selfweb3 notifications", recoverID, fmt.Sprintf("[SelfWeb3] Hi, your selfweb3 account has been updated, please keep the web2 private key ciphertext safe: %s", user.Web2Private)); err != nil {
+	if err := SendEmailToUser("selfweb3 notifications", recoverID, fmt.Sprintf("[SelfWeb3] Hi, your selfweb3 account %s has been updated, please keep the web2 private key ciphertext safe: %s", user.SelfID, user.Web2Private)); err != nil {
 		return err
 	}
 	rslog.Infof("store user web2Data successed: %+v", user.Web2Data)
