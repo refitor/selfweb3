@@ -100,7 +100,7 @@ func (p *Worker) Init() {
 		}
 		return json.Unmarshal(rscrypto.AesDecryptECB([]byte(user.WebauthnUser), []byte(decryptKey)), ptrObject)
 	}
-	rsauth.InitEmail("smtp.126.com:465", "refitor@126.com", "ZPHRFSXTEQUFNYLB")
+	rsauth.InitEmail("smtp.126.com:465", "refitor@126.com", "xxxxxx")
 }
 
 func (p *Worker) UnInit() {
