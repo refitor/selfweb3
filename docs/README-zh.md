@@ -2,13 +2,15 @@
 
 ### 一种为链上高度安全和数据所有权提供私有化保障的web3解决方案，通过强制动态授权，将用户资产一对一绑定到自己，而非钱包，webAuthn + TOTP + 零知识证明
 
+![/docs/selfweb3.png](/docs/selfweb3.png)
+
 ## 合约
 
 1. **Arbitrum Goerli, 421613: 0x7B6E05a55B1756f827F205BF454BF75288904ecF**
 
 ## 系统架构
 
-![/docs/selfweb3.png](/docs/selfweb3.png)
+![/docs/selfweb3-arch.png](/docs/selfweb3-arch.png)
 
 #### 说明: 公私钥指椭圆曲线secp256k1生成的公私钥对，密钥指32位明文字符串，dhKey指通过私钥和公钥动态计算出来的共享密钥
 
