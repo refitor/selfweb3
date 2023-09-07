@@ -25,28 +25,10 @@ export default {
             networkId: '',
             contractAddrMap: {
                 '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
-                '1': '0xe603a62a62F024D8323c3b7BcacEbB87d179b61C',
+                '1': '0x5a5ea6c024C90347348c211463698432aE242bba',
                 '421613': '0x7B6E05a55B1756f827F205BF454BF75288904ecF'
             },
             contractABI: [
-                {
-                    "inputs": [
-                        {
-                            "internalType": "bytes",
-                            "name": "signature",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "message",
-                            "type": "bytes"
-                        }
-                    ],
-                    "name": "Deposit",
-                    "outputs": [],
-                    "stateMutability": "payable",
-                    "type": "function"
-                },
                 {
                     "inputs": [
                         {
@@ -86,16 +68,6 @@ export default {
                     "inputs": [
                         {
                             "internalType": "bytes",
-                            "name": "userID",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "address",
-                            "name": "wallet",
-                            "type": "address"
-                        },
-                        {
-                            "internalType": "bytes",
                             "name": "signature",
                             "type": "bytes"
                         },
@@ -105,7 +77,7 @@ export default {
                             "type": "bytes"
                         }
                     ],
-                    "name": "Rebind",
+                    "name": "Deposit",
                     "outputs": [],
                     "stateMutability": "payable",
                     "type": "function"
@@ -114,84 +86,7 @@ export default {
                     "inputs": [
                         {
                             "internalType": "bytes",
-                            "name": "userID",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "recoverID",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "web3Key",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "web3Public",
-                            "type": "bytes"
-                        }
-                    ],
-                    "name": "Register",
-                    "outputs": [],
-                    "stateMutability": "payable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [],
-                    "name": "renounceOwnership",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        {
-                            "internalType": "address",
-                            "name": "newOwner",
-                            "type": "address"
-                        }
-                    ],
-                    "name": "transferOwnership",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        {
-                            "internalType": "bytes",
-                            "name": "signature",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "bytes",
-                            "name": "message",
-                            "type": "bytes"
-                        },
-                        {
-                            "internalType": "uint256",
-                            "name": "amount",
-                            "type": "uint256"
-                        }
-                    ],
-                    "name": "Withdraw",
-                    "outputs": [
-                        {
-                            "internalType": "uint256",
-                            "name": "",
-                            "type": "uint256"
-                        }
-                    ],
-                    "stateMutability": "payable",
-                    "type": "function"
-                },
-                {
-                    "inputs": [
-                        {
-                            "internalType": "bytes",
-                            "name": "userID",
+                            "name": "selfID",
                             "type": "bytes"
                         },
                         {
@@ -240,6 +135,110 @@ export default {
                     "type": "function"
                 },
                 {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "selfID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "wallet",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "signature",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "message",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "Rebind",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "selfID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "recoverID",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "web3Key",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "web3Public",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "Register",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "selfID",
+                            "type": "bytes"
+                        }
+                    ],
+                    "name": "Web3Key",
+                    "outputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "web3Key",
+                            "type": "bytes"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "bytes",
+                            "name": "signature",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "bytes",
+                            "name": "message",
+                            "type": "bytes"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "amount",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "Withdraw",
+                    "outputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "",
+                            "type": "uint256"
+                        }
+                    ],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
                     "inputs": [],
                     "name": "owner",
                     "outputs": [
@@ -253,22 +252,23 @@ export default {
                     "type": "function"
                 },
                 {
+                    "inputs": [],
+                    "name": "renounceOwnership",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                },
+                {
                     "inputs": [
                         {
-                            "internalType": "bytes",
-                            "name": "userID",
-                            "type": "bytes"
+                            "internalType": "address",
+                            "name": "newOwner",
+                            "type": "address"
                         }
                     ],
-                    "name": "Web3Key",
-                    "outputs": [
-                        {
-                            "internalType": "bytes",
-                            "name": "web3Key",
-                            "type": "bytes"
-                        }
-                    ],
-                    "stateMutability": "view",
+                    "name": "transferOwnership",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
                     "type": "function"
                 }
             ]

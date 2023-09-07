@@ -123,7 +123,7 @@ export default {
                                 self.wasmCallback("Init", response.data['Error'], false);
                             } else {
                                 console.log('backend init successed: ', wasmResp.data['Data']);
-                                self.initWeb3(web2Response['SelfID']);
+                                self.initWeb3(wasmResp.data['Data']);
                             }
                         });
                     }

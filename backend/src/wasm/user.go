@@ -121,11 +121,6 @@ func (p *User) Load(web3Key, web3Public string) error {
 			return err
 		}
 		p.Web3Key = rscrypto.AesDecryptECB(web3KeyBuf, []byte(dhKey))
-
-		// encrypt: webAuthnKey
-		if len(p.WebAuthnKey) == 0 {
-			p.WebAuthnKey = []byte(hexutil.Encode(rscrypto.AesEncryptECB([]byte(rscrypto.GetRandom(32, false)), p.Web3Key)))
-		}
 		LogDebugf("decrypt web3Key successed: %s, %v, %v", web3Key, p.Web3Key, p.WebAuthnKey)
 	}
 
@@ -171,7 +166,7 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	// update user
 	p.Web3Key = []byte(web3Key)
 	p.Web3Public = &private.PublicKey
-	p.WebAuthnKey = []byte(hexutil.Encode(rscrypto.AesEncryptECB([]byte(rscrypto.GetRandom(32, false)), p.Web3Key)))
+	p.WebAuthnKey = []byte(hexutil.Encode(rscrypto.AesEncryptECB(p.WebAuthnKey, p.Web3Key)))
 
 	qrcode, err := p.InitTOTPKey()
 	if err != nil {

@@ -161,6 +161,8 @@ func WauthnFinishRegister(username, webAuthnKey string, bufReader io.Reader) (*w
 	user.AddCredential(*credential)
 	user.SessionData = nil
 
+	rslog.Debugf("WauthnFinishRegister add credential: %+v, webAuthnKey: %s", user, webAuthnKey)
+
 	// store
 	if WebauthnSaveToStore != nil && webAuthnKey != "" {
 		WebauthnSaveToStore(username, webAuthnKey, user)

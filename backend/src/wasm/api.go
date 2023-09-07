@@ -63,12 +63,15 @@ func WasmInit(datas ...string) *Response {
 		vWorker.web2NetPublic = public
 	}
 
-	if u := GetUser(userID); u == nil {
-		if _, err := NewUser(userID, web2Key, webAuthnKey, web2Private); err != nil {
+	user := GetUser(userID)
+	if user == nil {
+		u, err := NewUser(userID, web2Key, webAuthnKey, web2Private)
+		if err != nil {
 			return wasmResponse(nil, WebError(err, "invalid web2Key or web2Private"))
 		}
+		user = u
 	}
-	return wasmResponse("successed", "")
+	return wasmResponse(crypto.PubkeyToAddress(user.Web2Private.PublicKey).Hex(), "")
 }
 
 // @request userID unique user ID

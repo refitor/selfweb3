@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"selfweb3/backend/pkg"
 	"selfweb3/backend/pkg/rsauth"
@@ -10,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/refitor/rslog"
-	uuid "github.com/satori/go.uuid"
-	"github.com/twmb/murmur3"
+	// uuid "github.com/satori/go.uuid"
+	// "github.com/twmb/murmur3"
 )
 
 const (
@@ -28,20 +27,23 @@ var (
 type User struct {
 	pkg.Web2Data
 
-	SelfID       string
 	RecoverID    []byte
-	WebauthnUser json.RawMessage
+	WebauthnUser []byte
 }
 
 func CreateUser(userID string) (*User, error) {
-	// generate userID
-	uid := uuid.NewV1()
-	hash := murmur3.Sum32([]byte(uid.String()))
-	selfID := fmt.Sprintf("%v", hash)
+	// // generate userID
+	// uid := uuid.NewV1()
+	// hash := murmur3.Sum32([]byte(uid.String()))
+	// selfID := fmt.Sprintf("%v", hash)
 
 	user := &User{}
-	user.SelfID = selfID
 	user.Web2Data.Web2Key = rscrypto.GetRandom(32, false)
+	webAuthnKey, err := rscrypto.GetDhKey(vWorker.WebPublic, vWorker.private)
+	if err != nil {
+		return nil, err
+	}
+	user.Web2Data.WebAuthnKey = webAuthnKey
 	rslog.Debugf("CreateUser successed: %+v", user)
 
 	// store
@@ -81,25 +83,29 @@ func UserStoreWeb2Data(userID, recoverID, encryptWeb2Data string) error {
 	}
 	user.Web2Data.Web2Key = web2Key
 
+	rslog.Debugf("before store user: %+v", user)
+
 	// store and send notifications
 	if err := UserSaveToStore(userID, user); err != nil {
 		return err
 	}
-	if err := SendEmailToUser("selfweb3 notifications", recoverID, fmt.Sprintf("[SelfWeb3] Hi, your selfweb3 account %s has been updated, please keep the web2 private key ciphertext safe: %s", user.SelfID, user.Web2Private)); err != nil {
+	utokens := []rune(userID)
+	sendUserID := fmt.Sprintf("%s...%s", string(utokens[:4]), string(utokens[len(utokens)-4:]))
+	if err := SendEmailToUser("selfweb3 notifications", recoverID, fmt.Sprintf("[SelfWeb3] Hi, your selfweb3 account %s has been updated, please keep the web2 private key ciphertext safe: %s", sendUserID, user.Web2Private)); err != nil {
 		return err
 	}
 	rslog.Infof("store user web2Data successed: %+v", user.Web2Data)
 	return nil
 }
 
-func UserLoadWeb2Data(userID, webPublic, params string) (string, any, error) {
+func UserLoadWeb2Data(userID, webPublic, params string) (any, error) {
 	rslog.Infof("before load user web2Data: %s, %s, %s", userID, webPublic, params)
 
 	// parse webPublic
 	if webPublic != "" {
 		publicKey, err := rscrypto.GetPublicKey(webPublic)
 		if err != nil {
-			return "", nil, err
+			return nil, err
 		}
 		vWorker.WebPublic = publicKey
 	}
@@ -110,21 +116,21 @@ func UserLoadWeb2Data(userID, webPublic, params string) (string, any, error) {
 		if params == "initWeb2" {
 			u, err := CreateUser(userID)
 			if err != nil {
-				return "", nil, err
+				return nil, err
 			}
 			user = u
 		} else {
-			return "", nil, err
+			return nil, err
 		}
 	}
 
 	// encrypt web2Data
 	web2Data, err := pkg.Web2EncodeEx(vWorker.private, webPublic, &user.Web2Data)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	rslog.Infof("load user web2Data successed: %s", web2Data)
-	return user.SelfID, web2Data, nil
+	return web2Data, nil
 }
 
 func SendEmailToUser(title, email, content string) error {

@@ -90,7 +90,8 @@ func (p *Worker) Init() {
 		if err != nil {
 			return err
 		}
-		user.WebauthnUser = rscrypto.AesDecryptECB(wbuf, []byte(encryptKey))
+		user.WebauthnUser = rscrypto.AesEncryptECB(wbuf, []byte(encryptKey))
+		rslog.Debugf("WebauthnSaveToStore: %s, %s, %+v", key, encryptKey, user)
 		return rsstore.SaveToDB(rsstore.Cache(), C_Store_User, key, user)
 	}
 	WebauthnGetFromStore = func(key, decryptKey string, ptrObject any) error {
@@ -98,6 +99,7 @@ func (p *Worker) Init() {
 		if err := rsstore.LoadFromDB(C_Store_User, key, user); err != nil {
 			return err
 		}
+		rslog.Debugf("WebauthnGetFromStore: %s, %s, %+v", key, decryptKey, user)
 		return json.Unmarshal(rscrypto.AesDecryptECB([]byte(user.WebauthnUser), []byte(decryptKey)), ptrObject)
 	}
 	rsauth.InitEmail("smtp.126.com:465", "refitor@126.com", "xxxxxx")

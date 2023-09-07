@@ -3,13 +3,16 @@ package rscrypto
 import (
 	"bytes"
 	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,56 +26,56 @@ import (
 // signature: base64.EncodeToString
 
 // =================== ECB ======================
-func GenerateAesKey(data string) string {
-	runesRandom := []rune(data)
-	if len(runesRandom) < 32 {
-		for i := 0; i < 32; i++ {
-			data += "0"
-		}
+func AesEncryptECB(origData []byte, key []byte) []byte {
+	//Create a new Cipher Block from the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err.Error())
 	}
-	return data[:31]
+
+	//Create a new GCM - https://en.wikipedia.org/wiki/Galois/Counter_Mode
+	//https://golang.org/pkg/crypto/cipher/#NewGCM
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	//Create a nonce. Nonce should be from GCM
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		panic(err.Error())
+	}
+
+	//Encrypt the data using aesGCM.Seal
+	//Since we don't want to save the nonce somewhere else in this case, we add it as a prefix to the encrypted data. The first nonce argument in Seal is the prefix.
+	return aesGCM.Seal(nonce, nonce, origData, nil)
 }
 
-func AesEncryptECB(origData []byte, key []byte) (encrypted []byte) {
-	cipher, _ := aes.NewCipher(generateKey(key))
-	length := (len(origData) + aes.BlockSize) / aes.BlockSize
-	plain := make([]byte, length*aes.BlockSize)
-
-	copy(plain, origData)
-	pad := byte(len(plain) - len(origData))
-	for i := len(origData); i < len(plain); i++ {
-		plain[i] = pad
-	}
-	encrypted = make([]byte, len(plain))
-	for bs, be := 0, cipher.BlockSize(); bs <= len(origData); bs, be = bs+cipher.BlockSize(), be+cipher.BlockSize() {
-		cipher.Encrypt(encrypted[bs:be], plain[bs:be])
-	}
-	return encrypted
-}
-
-func AesDecryptECB(encrypted []byte, key []byte) (decrypted []byte) {
-	cipher, _ := aes.NewCipher(generateKey(key))
-	decrypted = make([]byte, len(encrypted))
-	for bs, be := 0, cipher.BlockSize(); bs < len(encrypted); bs, be = bs+cipher.BlockSize(), be+cipher.BlockSize() {
-		cipher.Decrypt(decrypted[bs:be], encrypted[bs:be])
+func AesDecryptECB(encrypted []byte, key []byte) []byte {
+	//Create a new Cipher Block from the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err.Error())
 	}
 
-	trim := 0
-	if len(decrypted) > 0 {
-		trim = len(decrypted) - int(decrypted[len(decrypted)-1])
+	//Create a new GCM
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err.Error())
 	}
-	return decrypted[:trim]
-}
 
-func generateKey(key []byte) (genKey []byte) {
-	genKey = make([]byte, 16)
-	copy(genKey, key)
-	for i := 16; i < len(key); {
-		for j := 0; j < 16 && i < len(key); j, i = j+1, i+1 {
-			genKey[j] ^= key[i]
-		}
+	//Get the nonce size
+	nonceSize := aesGCM.NonceSize()
+
+	//Extract the nonce from the encrypted data
+	nonce, ciphertext := encrypted[:nonceSize], encrypted[nonceSize:]
+
+	//Decrypt the data
+	decrypted, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		panic(err.Error())
 	}
-	return genKey
+	return decrypted
 }
 
 // =================== ECB ======================

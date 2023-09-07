@@ -365,10 +365,10 @@ export default {
             // Google authenticator doesn't like equal signs
             let userID = this.$parent.getSelf().selfID;
             // let walletAddress = this.$parent.getSelf().getWalletAddress();
-            // let walletAddr = walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
+            let selfID = userID.substring(0, 4) + "..." + userID.substring(userID.length - 4, userID.length);
 
             // to create a URI for a qr code (change totp to hotp if using hotp)
-            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + userID;
+            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + selfID;
             this.qrcodeUrl = 'otpauth://totp/' + totpName + '?secret=' + totpKey.replace(/=/g,'');
         },
         pageWidth(){
