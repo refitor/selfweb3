@@ -50,11 +50,10 @@ func WasmInit(datas ...string) *Response {
 	if err := pkg.Web2DecodeEx(vWorker.private, web2NetPublic, web2Data, wd2); err != nil {
 		return wasmResponse(nil, WebError(err, "invalid web2Params"))
 	}
-	web2Key, webAuthnKey, web2Private := wd2.Web2Key, wd2.WebAuthnKey, wd2.Web2Private
 	if inputWeb2Key != "" {
-		web2Key = inputWeb2Key
+		wd2.Web2Key = inputWeb2Key
 	}
-	LogDebugf("-==============%s, %s, %+v", web2Key, web2Private, wd2)
+	LogDebugf("-==============%s, %s, %+v", inputWeb2Key, wd2)
 
 	// parse web2NetPublic
 	if public, err := rscrypto.GetPublicKey(web2NetPublic); err != nil {
@@ -65,7 +64,7 @@ func WasmInit(datas ...string) *Response {
 
 	user := GetUser(userID)
 	if user == nil {
-		u, err := NewUser(userID, web2Key, webAuthnKey, web2Private)
+		u, err := NewUser(userID, wd2)
 		if err != nil {
 			return wasmResponse(nil, WebError(err, "invalid web2Key or web2Private"))
 		}
@@ -232,7 +231,9 @@ func wasmHandle(kind string, user *User, params ...string) (handleResult any, ha
 	handleResult = "successed"
 	switch paramMap["method"] {
 	case c_method_RelationVerify:
-		handleErr = user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public])
+		if handleErr = user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); handleErr == nil {
+			handleResult, handleErr = user.GetRelateVerifyNonce(paramMap[c_param_relateTimes])
+		}
 	case c_method_ResetTOTPKey:
 		if err := user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); err != nil {
 			return nil, err

@@ -84,9 +84,9 @@
 
 ## 关联验证流程
 
-合约: verifyRandom(用于关联验证的随机数, 仅在注册时写入无法修改, 将作为leaf参与merkle树验证)
-注册: 生成用于关联验证的随机数, 写入合约, 通过web2Key加密存入web2服务，同时备份存储到ceramic storage
-验证: wasm部分根据解密出的verifyRandom, 遵循 email + step + 1, TOTP + step + 2, webAuthn + step + 3的规则生成证明和merkle树的root, 合约根据传入的proof, root, step以及存储的verifyRandom进行merkle树验证
+> - 合约: verifyRandom(用于关联验证的随机数, 仅在注册时写入无法修改, 将作为leaf参与merkle树验证)
+> - 注册: 生成用于关联验证的随机数, 写入合约, 通过web2Key加密存入web2服务，同时备份存储到ceramic storage
+> - 验证: wasm部分根据解密出的verifyRandom, 遵循 email + step + 1, TOTP + step + 2, webAuthn + step + 3的规则生成证明和merkle树的root, 合约根据传入的proof, root, step以及存储的verifyRandom进行merkle树验证
 
 ## 核心业务流程
 

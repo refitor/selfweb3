@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"selfweb3/backend/pkg"
 	"selfweb3/backend/pkg/rscrypto"
 
 	"github.com/dgryski/dgoogauth"
@@ -16,14 +18,16 @@ import (
 )
 
 const (
-	c_param_random     = "random"
-	c_param_web2Key    = "web2Key"
-	c_param_web3Key    = "web3Key"
-	c_param_recoverID  = "recoverID"
-	c_param_web3Public = "web3Public"
+	c_param_random      = "random"
+	c_param_web2Key     = "web2Key"
+	c_param_web3Key     = "web3Key"
+	c_param_recoverID   = "recoverID"
+	c_param_web3Public  = "web3Public"
+	c_param_relateTimes = "relateTimes"
 )
 
 type Web3User struct {
+	Random     int64
 	QRCode     string
 	Web2Data   string
 	Web3Key    string
@@ -32,28 +36,34 @@ type Web3User struct {
 }
 
 type User struct {
-	ID          string
-	Web3Key     []byte
-	Web2Key     []byte
-	TOTPKey     []byte
-	WebAuthnKey []byte
-	Web3Public  *ecdsa.PublicKey
-	Web2Private *ecdsa.PrivateKey
+	ID           string
+	Web3Key      []byte
+	Web2Key      []byte
+	TOTPKey      []byte
+	WebAuthnKey  []byte
+	VerifyRandom []byte
+	Web2Data     *pkg.Web2Data
+	Web3Public   *ecdsa.PublicKey
+	Web2Private  *ecdsa.PrivateKey
+
+	relateVerifyNonce int64
 }
 
-func NewUser(userID, web2Key, webAuthnKey, web2Private string) (*User, error) {
-	if web2Key == "" {
+func NewUser(userID string, web2Data *pkg.Web2Data) (*User, error) {
+	if web2Data == nil {
 		return nil, errors.New("invalid web2Key or web2PrivateKey")
 	}
-	LogDebugf("before NewUser, %s, %s, %s", userID, web2Key, web2Private)
+	LogDebugf("before NewUser, %s, %+v", userID, web2Data)
 
 	// create user
 	user := &User{
-		ID:          userID,
-		Web2Key:     []byte(web2Key),
-		WebAuthnKey: []byte(webAuthnKey),
+		ID:           userID,
+		Web2Data:     web2Data,
+		Web2Key:      []byte(web2Data.Web2Key),
+		WebAuthnKey:  []byte(web2Data.WebAuthnKey),
+		VerifyRandom: web2Data.Random,
 	}
-	if web2Private == "" {
+	if web2Data.Web2Private == "" {
 		private, err := Web2Init()
 		if err != nil {
 			return nil, err
@@ -61,11 +71,11 @@ func NewUser(userID, web2Key, webAuthnKey, web2Private string) (*User, error) {
 		user.Web2Private = private
 	} else {
 		// decode web2 private key
-		web2PrivateBuf, err := hexutil.Decode(web2Private)
+		web2PrivateBuf, err := hexutil.Decode(web2Data.Web2Private)
 		if err != nil {
 			return nil, err
 		}
-		privateBuf := rscrypto.AesDecryptECB(web2PrivateBuf, []byte(web2Key))
+		privateBuf := rscrypto.AesDecryptECB(web2PrivateBuf, []byte(web2Data.Web2Key))
 		web2PrivateKey, err := crypto.ToECDSA(privateBuf[0:32])
 		if err != nil {
 			return nil, err
@@ -163,6 +173,13 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	}
 	web3User.RecoverID = hexutil.Encode(sig)
 
+	// verify random
+	verifyRandom, err := rscrypto.GetRandomInt(5)
+	if err != nil {
+		return nil, err
+	}
+	p.VerifyRandom = rscrypto.AesEncryptECB([]byte(fmt.Sprintf("%v", verifyRandom)), p.Web2Key)
+
 	// update user
 	p.Web3Key = []byte(web3Key)
 	p.Web3Public = &private.PublicKey
@@ -178,6 +195,7 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	}
 	web3User.QRCode = qrcode
 	web3User.Web2Data = web2Data
+	web3User.Random = verifyRandom
 	LogDebugf("after encrypt: %+v, %+v, web3KeyBuf: %v, web2Private: %s", p, web3User, web3KeyBuf, hexutil.Encode(crypto.FromECDSA(p.Web2Private)))
 	return web3User, nil
 }
@@ -277,4 +295,55 @@ func (p *User) VerifyTOTP(code string) error {
 		return errors.New("dynamic authorization verify failed: TOTP")
 	}
 	return nil
+}
+
+func (p *User) GetRelateVerifyNonce(relateVerifyTimes string) (any, error) {
+	verifyRandom, err := strconv.ParseInt(string(rscrypto.AesDecryptECB(p.VerifyRandom, p.Web2Key)), 10, 64)
+	if err != nil {
+		return "", err
+	}
+	relateTimes, err := strconv.Atoi(relateVerifyTimes)
+	if err != nil {
+		return "", err
+	}
+
+	// remove self
+	relateTimes -= 1
+
+	nonce, err := rscrypto.GetRandomInt(4)
+	if err != nil {
+		return nil, err
+	}
+	if relateTimes > 0 {
+		// last relateVerifyNonce + 1 * systemNonce
+		nonce = p.relateVerifyNonce + int64(p.Web2Data.SystemNonce)
+	}
+	p.relateVerifyNonce = nonce
+	LogDebugf("GetRelateVerifyNonce successed, verifyRandom: %d, nonce: %d, systemNonce: %d", verifyRandom, nonce, p.Web2Data.SystemNonce)
+
+	output := struct {
+		Nonce       string
+		RelateNonce int64
+	}{
+		Nonce:       fmt.Sprintf("%d", int64(p.Web2Data.SystemNonce*33)+verifyRandom+nonce),
+		RelateNonce: nonce,
+	}
+	return output, nil
+}
+
+func (p *User) GetDynamicVerifyNonce() (any, error) {
+	nonce, err := rscrypto.GetRandomInt(4)
+	if err != nil {
+		return nil, err
+	}
+	LogDebugf("GetDynamicVerifyNonce successed, nonce: %d, systemNonce: %d", nonce, p.Web2Data.SystemNonce)
+
+	output := struct {
+		Nonce       string
+		RelateNonce int64
+	}{
+		Nonce:       fmt.Sprintf("%d", int64(p.Web2Data.SystemNonce*33)+nonce),
+		RelateNonce: nonce,
+	}
+	return output, nil
 }

@@ -4,14 +4,21 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strconv"
 	"time"
 )
 
-func GetRandomInt(max *big.Int) (int, error) {
+func GetRandomInt(n int) (int64, error) {
+	if v, err := strconv.ParseInt(GetRandom(n, true), 10, 64); err != nil {
+		return 0, err
+	} else {
+		return v, nil
+	}
+}
+
+func getRandomInt(max *big.Int) (int, error) {
 	if max == nil {
-		seed := "0123456789"
-		alphanum := seed + fmt.Sprintf("%v", time.Now().UnixNano())
-		max = big.NewInt(int64(len(alphanum)))
+		max = big.NewInt(time.Now().UnixNano())
 	}
 	vrand, err := rand.Int(rand.Reader, max)
 	if err != nil {
@@ -30,7 +37,7 @@ func GetRandom(n int, isNO bool) string {
 	max := big.NewInt(int64(len(alphanum)))
 
 	for i := 0; i < n; i++ {
-		index, err := GetRandomInt(max)
+		index, err := getRandomInt(max)
 		if err != nil {
 			return ""
 		}

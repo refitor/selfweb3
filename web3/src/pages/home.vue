@@ -180,10 +180,12 @@ export default {
                     var web3Key = response.data['Data']['Web3Key'];
                     var recoverID = response.data['Data']['RecoverID'];
                     var web3Public = response.data['Data']['Web3Public'];
+                    var verifyRandom = response.data['Data']['Random'];
                     registParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
                     registParams.push(Web3.utils.asciiToHex(recoverID));
                     registParams.push(Web3.utils.asciiToHex(web3Key));
                     registParams.push(Web3.utils.asciiToHex(web3Public));
+                    registParams.push(Web3.utils.toHex(verifyRandom));
                     // 流程: contract.Register ===> webAuthnRegister ===> /api/datas/store ===> TOTP QRCode
                     self.$parent.getSelf().getWallet().Execute("send", "Register", self.$parent.getSelf().getWalletAddress(), 0, registParams, function (result) {
                         let recoverID = self.modelKey;
@@ -325,11 +327,11 @@ export default {
         relationVerify(bTOTP, bWebAuthn, wasmEmailResponse, zkProofParams, callback, failed) {
             let self = this;
             let userID = self.$parent.getSelf().getWalletAddress();
-            let verifyWebAuthn = function(zkParams) {
+            let verifyWebAuthn = function(params) {
                 // 关联性webAuthn校验，依赖zkParams链上校验提取web3Key
                 let loadParams = [];
                 loadParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
-                // TODO: 加载web3Key相关数据需要依赖TOTP校验后生成的ZK证明，送进合约校验
+                loadParams = loadParams.concat(params);
                 self.$parent.getSelf().$refs.walletPanel.Execute("call", "Web3Key", userID, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Load from contract successed: ', loadResult);
                     let web3Map = {"method": "WebAuthnKey", "web3Key": Web3.utils.hexToAscii(loadResult), "web3Public": self.web3Public};
@@ -347,12 +349,11 @@ export default {
             }
             
             if (bTOTP === true) {
-                let web3Map = {"method": "RelationVerify", "web3Key": '', "web3Public": self.web3Public, "random": wasmEmailResponse};
+                let relateTimes = "1";
+                let web3Map = {"method": "RelationVerify", "web3Key": '', "web3Public": self.web3Public, "random": wasmEmailResponse, "relateTimes": relateTimes};
                 self.$parent.getSelf().switchPanel('RelationVerify', '', JSON.stringify(web3Map), function(wasmTOTPResponse){
                     if (bWebAuthn === true) {
-                        // TODO: generate zk-proof
-                        let zkParams = [];
-                        verifyWebAuthn(zkParams);
+                        self.generateMerkleParams('TOTP', wasmTOTPResponse, relateTimes, verifyWebAuthn);
                     } else {
                         if (callback !== undefined && callback !== null) callback(wasmTOTPResponse);
                     }
@@ -360,6 +361,40 @@ export default {
             } else if (bWebAuthn === true) {
                 verifyWebAuthn(zkProofParams);
             }
+        },
+        // relateKind: Email, TOTP, WebAuthn
+        generateMerkleParams(relateKind, rvparams, relateTimes, callback) {
+            console.log('generateMerkleParams: ', rvparams, relateTimes);
+            let self = this;
+            let queryMap = {};
+            queryMap['kind'] = 'relateVerify';
+            queryMap['relateKind'] = relateKind;
+            queryMap['nonce'] = rvparams['Nonce'];
+            queryMap['relateTimes'] = relateTimes;
+            queryMap['userID'] = self.$parent.getSelf().getWalletAddress();
+            self.$parent.getSelf().httpGet("/api/datas/load", queryMap, function(response) {
+                if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
+                    self.$Message.error('load datas from web2 service failed: ', response.data['Error']);
+                } else {
+                    const relateVerifyParam = response.data['Data'];
+                    console.log('before generateMerkleParams: ', relateVerifyParam);
+                    const merkleParams = self.$parent.getSelf().$refs.walletPanel.getWeb3().eth.abi.encodeParameter(
+                        {
+                            "RelateVerifyParam": {
+                                "root": 'bytes32',
+                                "nonce": 'uint256',
+                                "proof": 'bytes32[]',
+                            }
+                        },
+                        {
+                            "root": relateVerifyParam['root'],
+                            "nonce": Web3.utils.toHex(rvparams['RelateNonce']),
+                            "proof": relateVerifyParam['proof']
+                        }
+                    )
+                    if (callback !== undefined && callback !== null) callback(merkleParams);
+                }
+            })
         },
         showQRcode(totpKey) {
             // Google authenticator doesn't like equal signs

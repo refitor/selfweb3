@@ -16,6 +16,8 @@ func Web2Init() (*ecdsa.PrivateKey, error) {
 
 func Web2EncryptWeb2Data(user *User) (string, error) {
 	wd2 := &pkg.Web2Data{
+		Random:      user.VerifyRandom,
+		SystemNonce: user.Web2Data.SystemNonce,
 		WebAuthnKey: string(user.WebAuthnKey),
 		Web2Private: encodeWeb2Private(user),
 	}

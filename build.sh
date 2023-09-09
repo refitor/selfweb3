@@ -16,4 +16,4 @@ yarn run build
 cd ../
 
 # build selfweb3
-go build -o selfweb3 main.go
+# go build -o selfweb3 main.go

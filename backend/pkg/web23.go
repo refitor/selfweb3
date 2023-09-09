@@ -18,10 +18,11 @@ const (
 )
 
 type Web2Data struct {
+	Random      []byte
 	Web2Key     string
-	Payload     string
 	WebAuthnKey string
 	Web2Private string
+	SystemNonce int64
 }
 
 func Web2EncodeEx(priavateKey *ecdsa.PrivateKey, public string, data any) (string, error) {
