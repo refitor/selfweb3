@@ -12,17 +12,17 @@ import (
 const (
 	C_SelfID        = "SelfID"
 	C_Web2Data      = "Web2Data"
+	C_Web2Address   = "Web2Address"
 	C_AuthorizeID   = "AuthorizeID"
 	C_AuthorizeCode = "AuthorizeCode"
 	C_Web2NetPublic = "Web2NetPublic"
 )
 
 type Web2Data struct {
-	Random      []byte
+	Nonce       []byte
 	Web2Key     string
 	WebAuthnKey string
 	Web2Private string
-	SystemNonce int64
 }
 
 func Web2EncodeEx(priavateKey *ecdsa.PrivateKey, public string, data any) (string, error) {

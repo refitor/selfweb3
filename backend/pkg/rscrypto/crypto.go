@@ -15,6 +15,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
@@ -134,3 +135,8 @@ func HmacSha1(key, data []byte) []byte {
 }
 
 // =================== ecdsa ======================
+
+func EthHash(data []byte) common.Hash {
+	// msgHash := crypto.Keccak256Hash(data).Bytes()
+	return crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)))
+}

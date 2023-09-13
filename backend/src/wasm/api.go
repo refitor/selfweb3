@@ -232,7 +232,7 @@ func wasmHandle(kind string, user *User, params ...string) (handleResult any, ha
 	switch paramMap["method"] {
 	case c_method_RelationVerify:
 		if handleErr = user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); handleErr == nil {
-			handleResult, handleErr = user.GetRelateVerifyNonce(paramMap[c_param_relateTimes])
+			handleResult, handleErr = user.GetRelateVerifyParams(paramMap[c_verify_action])
 		}
 	case c_method_ResetTOTPKey:
 		if err := user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); err != nil {

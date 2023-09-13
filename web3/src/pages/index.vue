@@ -31,6 +31,7 @@ export default {
             selfID: '',
             connect: false,
             wasmPublic: '',
+            web2Address: '',
             walletAddress: '',
 
             showTOTP: false,
@@ -78,13 +79,14 @@ export default {
                 window.location.reload();
             }
         },
-        initWeb3(selfID) {
+        initWeb3(selfID, web2Address) {
             let self = this;
             this.selfID = selfID;
+            this.web2Address = web2Address;
             let message = 'SelfWeb3 Init: ' + (new Date()).getTime();
             self.signTypedData(message, function(sig) {
                 var loadParams = [];
-                loadParams.push(Web3.utils.asciiToHex(selfID));
+                loadParams.push(selfID);
                 loadParams.push(sig);
                 loadParams.push(Web3.utils.asciiToHex(message));
                 self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (loadResult) {
@@ -93,7 +95,7 @@ export default {
                     let web3Public = Web3.utils.hexToAscii(loadResult['web3Public']);
                     self.$refs.privatePanel.hasRegisted = true;
                     self.enableSpin(false);
-                    self.$refs.privatePanel.init(self.selfID, recoverID, web3Public);
+                    self.$refs.privatePanel.init(recoverID, web3Public);
                 }, function (err) {
                     self.enableSpin(false);
                     self.$Message.error('web3 contract: Web3Public failed');
@@ -123,7 +125,7 @@ export default {
                                 self.wasmCallback("Init", response.data['Error'], false);
                             } else {
                                 console.log('backend init successed: ', wasmResp.data['Data']);
-                                self.initWeb3(wasmResp.data['Data']);
+                                self.initWeb3(wasmResp.data['Data'], web2Response['Web2Address']);
                             }
                         });
                     }
@@ -174,7 +176,7 @@ export default {
                     value: msg
                 }
             ]
-            
+
             let self = this;
             let from = this.getWalletAddress();
             var params = [msgParams, from];
@@ -206,10 +208,10 @@ export default {
         wasmCallback(method, err, spinStatus) {
             if (spinStatus !== undefined) this.enableSpin(spinStatus);
             if (err === undefined || err === '') {
-                this.$Message.success('exec wasm method successed: ' + method);                
+                this.$Message.success('exec wasm method successed: ' + method);
             } else {
                 console.log('exec wasm method failed: ', method + ", ", err);
-                this.$Message.error('exec wasm method failed: ' + method + ", " + err);    
+                this.$Message.error('exec wasm method failed: ' + method + ", " + err);
             }
         },
         httpGet(url, formdata, onResponse, onPanic) {

@@ -137,13 +137,15 @@ export default {
         openLink(url) {
             window.open(url, '_blank');
         },
-        init(selfID, recoverID, web3Public) {
+        init(recoverID, web3Public) {
             this.recoverID = recoverID;
             this.web3Public = web3Public;
-            this.addKV('SelfID', {'value': selfID}, true);
+            const web2Address = this.$parent.getSelf().web2Address;
+            this.addKV('SelfID', {'value': this.$parent.getSelf().selfID}, true);
             const contractAddr = this.$parent.getSelf().getWallet().contractAddrMap[this.$parent.getSelf().getWallet().networkId];
             this.addKV('Wallet', {'btnName': 'View', 'value': this.$parent.getSelf().getWalletAddress(), 'url': 'https://etherscan.io/token/' + this.$parent.getSelf().getWalletAddress()}, false);
             this.addKV('Contract', {'btnName': 'View', 'value': contractAddr, 'url': 'https://etherscan.io/token/' + contractAddr}, false);
+            this.addKV('Web2Address', {'btnName': 'View', 'value': web2Address, 'url': 'https://etherscan.io/token/' + web2Address}, false);
             // this.addKV('Encrypt-Decrypt', {'value': this.$parent.getSelf().generatekey(16, false), 'btnName': 'Test'}, false);
             // this.addKV('SelfVault', {'value': contractAddr, 'btnName': 'Launch'}, false);
         },
@@ -177,15 +179,10 @@ export default {
                 } else {
                     self.$parent.getSelf().wasmCallback("Register");
                     var registParams = [];
-                    var web3Key = response.data['Data']['Web3Key'];
-                    var recoverID = response.data['Data']['RecoverID'];
-                    var web3Public = response.data['Data']['Web3Public'];
-                    var verifyRandom = response.data['Data']['Random'];
-                    registParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
-                    registParams.push(Web3.utils.asciiToHex(recoverID));
-                    registParams.push(Web3.utils.asciiToHex(web3Key));
-                    registParams.push(Web3.utils.asciiToHex(web3Public));
-                    registParams.push(Web3.utils.toHex(verifyRandom));
+                    registParams.push(self.$parent.getSelf().selfID);
+                    registParams.push(Web3.utils.asciiToHex(response.data['Data']['RecoverID']));
+                    registParams.push(Web3.utils.asciiToHex(response.data['Data']['Web3Key']));
+                    registParams.push(Web3.utils.asciiToHex(response.data['Data']['Web3Public']));
                     // 流程: contract.Register ===> webAuthnRegister ===> /api/datas/store ===> TOTP QRCode
                     self.$parent.getSelf().getWallet().Execute("send", "Register", self.$parent.getSelf().getWalletAddress(), 0, registParams, function (result) {
                         let recoverID = self.modelKey;
@@ -254,15 +251,14 @@ export default {
                 this.$Message.error('encrypted privateKey must be non-empty');
                 return;
             }
-            this.popModal = false; 
+            this.popModal = false;
 
             let selfID = self.$parent.getSelf().selfID;
             let userID = self.$parent.getSelf().getWalletAddress();
             if (self.resetKind === "TOTP") {
                 let resetMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Public": self.web3Public};
                 self.verifyEmail(this.modelKey, resetMap, function(wasmEmailResponse) {
-                    let zkParams = [];
-                    self.relationVerify(false, true, wasmEmailResponse, zkParams, function(){
+                    self.relationVerify(false, true, function(){
                         self.storeWeb2Data(userID, '', wasmEmailResponse['Web2Data'], wasmEmailResponse['QRCode']);
                     })
                 })
@@ -278,7 +274,7 @@ export default {
             if (name === 'SelfVault') {
                 // TOTP校验成功后获取到WebAuthnKey, 触发webAuthnLogin
                 // 流程: WebAuthnKey获取 ===> webAuthnLogin ===> switchPanel
-                self.relationVerify(true, true, '', [], function() {
+                self.relationVerify(true, true, function() {
                     self.$parent.getSelf().afterVerifyFunc = null;
                     self.$parent.getSelf().afterVerify(true, '', name)
                 }, function() {
@@ -324,13 +320,13 @@ export default {
             })
         },
         // 关联验证流程: web3合约: 钱包签名校验(提取web3Public) ---> TOTP校验 ---> web3合约: zk证明校验, 钱包签名校验(提取web3Key) ---> webAuthn登录校验
-        relationVerify(bTOTP, bWebAuthn, wasmEmailResponse, zkProofParams, callback, failed) {
+        relationVerify(bTOTP, bWebAuthn, callback, failed) {
             let self = this;
             let userID = self.$parent.getSelf().getWalletAddress();
             let verifyWebAuthn = function(params) {
                 // 关联性webAuthn校验，依赖zkParams链上校验提取web3Key
                 let loadParams = [];
-                loadParams.push(Web3.utils.asciiToHex(self.$parent.getSelf().selfID));
+                loadParams.push(self.$parent.getSelf().selfID);
                 loadParams = loadParams.concat(params);
                 self.$parent.getSelf().$refs.walletPanel.Execute("call", "Web3Key", userID, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Load from contract successed: ', loadResult);
@@ -347,51 +343,55 @@ export default {
                     if (failed !== undefined && failed !== null) failed();
                 })
             }
-            
+
             if (bTOTP === true) {
                 let relateTimes = "1";
-                let web3Map = {"method": "RelationVerify", "web3Key": '', "web3Public": self.web3Public, "random": wasmEmailResponse, "relateTimes": relateTimes};
+                let web3Map = {"method": "RelationVerify", "web3Key": '', "web3Public": self.web3Public, "action": "dapp"};
                 self.$parent.getSelf().switchPanel('RelationVerify', '', JSON.stringify(web3Map), function(wasmTOTPResponse){
                     if (bWebAuthn === true) {
-                        self.generateMerkleParams('TOTP', wasmTOTPResponse, relateTimes, verifyWebAuthn);
+                        self.packRelateVerifyParams(web3Map['action'], wasmTOTPResponse, verifyWebAuthn);
                     } else {
                         if (callback !== undefined && callback !== null) callback(wasmTOTPResponse);
                     }
                 })
             } else if (bWebAuthn === true) {
-                verifyWebAuthn(zkProofParams);
+                verifyWebAuthn([]);
             }
         },
         // relateKind: Email, TOTP, WebAuthn
-        generateMerkleParams(relateKind, rvparams, relateTimes, callback) {
-            console.log('generateMerkleParams: ', rvparams, relateTimes);
+        packRelateVerifyParams(action, verifyParams, callback) {
+            console.log('packRelateVerifyParams: ', action, verifyParams);
             let self = this;
             let queryMap = {};
+            queryMap['action'] = action;
             queryMap['kind'] = 'relateVerify';
-            queryMap['relateKind'] = relateKind;
-            queryMap['nonce'] = rvparams['Nonce'];
-            queryMap['relateTimes'] = relateTimes;
+            queryMap['nonce'] = verifyParams['nonce'];
             queryMap['userID'] = self.$parent.getSelf().getWalletAddress();
             self.$parent.getSelf().httpGet("/api/datas/load", queryMap, function(response) {
                 if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
                     self.$Message.error('load datas from web2 service failed: ', response.data['Error']);
                 } else {
-                    const relateVerifyParam = response.data['Data'];
-                    console.log('before generateMerkleParams: ', relateVerifyParam);
+                    const relateVerifyParams = response.data['Data'];
+                    console.log('before packRelateVerifyParams: ', relateVerifyParams);
                     const merkleParams = self.$parent.getSelf().$refs.walletPanel.getWeb3().eth.abi.encodeParameter(
                         {
-                            "RelateVerifyParam": {
-                                "root": 'bytes32',
-                                "nonce": 'uint256',
-                                "proof": 'bytes32[]',
+                            "VerifyParam": {
+                                "kindList": 'uint256[]',
+                                "msgList": 'bytes[]',
+                                "sigList": 'bytes[]',
+                                "proofs": 'bytes32[][]',
+                                "leaves": 'bytes32[]',
                             }
                         },
                         {
-                            "root": relateVerifyParam['root'],
-                            "nonce": Web3.utils.toHex(rvparams['RelateNonce']),
-                            "proof": relateVerifyParam['proof']
+                            "kindList": [1, 2],
+                            "msgList": [Web3.utils.asciiToHex(relateVerifyParams['message']), Web3.utils.asciiToHex(verifyParams['message'])],
+                            "sigList": [relateVerifyParams['signature'], verifyParams['signature']],
+                            "proofs": [relateVerifyParams['proofs']],
+                            "leaves": relateVerifyParams['leaves'],
                         }
                     )
+                    console.log('&^^^^^^^^^^^^^^^^^merkleParams: ', merkleParams, relateVerifyParams, verifyParams);
                     if (callback !== undefined && callback !== null) callback(merkleParams);
                 }
             })

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"selfweb3/backend/pkg"
 	"selfweb3/backend/pkg/rscrypto"
@@ -24,10 +25,14 @@ const (
 	c_param_recoverID   = "recoverID"
 	c_param_web3Public  = "web3Public"
 	c_param_relateTimes = "relateTimes"
+
+	c_verify_action          = "action"
+	c_verify_action_dapp     = "dapp"
+	c_verify_action_deposit  = "deposit"
+	c_verify_action_withdraw = "withdraw"
 )
 
 type Web3User struct {
-	Random     int64
 	QRCode     string
 	Web2Data   string
 	Web3Key    string
@@ -36,15 +41,14 @@ type Web3User struct {
 }
 
 type User struct {
-	ID           string
-	Web3Key      []byte
-	Web2Key      []byte
-	TOTPKey      []byte
-	WebAuthnKey  []byte
-	VerifyRandom []byte
-	Web2Data     *pkg.Web2Data
-	Web3Public   *ecdsa.PublicKey
-	Web2Private  *ecdsa.PrivateKey
+	ID          string
+	Web3Key     []byte
+	Web2Key     []byte
+	TOTPKey     []byte
+	WebAuthnKey []byte
+	Web2Data    *pkg.Web2Data
+	Web3Public  *ecdsa.PublicKey
+	Web2Private *ecdsa.PrivateKey
 
 	relateVerifyNonce int64
 }
@@ -57,11 +61,10 @@ func NewUser(userID string, web2Data *pkg.Web2Data) (*User, error) {
 
 	// create user
 	user := &User{
-		ID:           userID,
-		Web2Data:     web2Data,
-		Web2Key:      []byte(web2Data.Web2Key),
-		WebAuthnKey:  []byte(web2Data.WebAuthnKey),
-		VerifyRandom: web2Data.Random,
+		ID:          userID,
+		Web2Data:    web2Data,
+		Web2Key:     []byte(web2Data.Web2Key),
+		WebAuthnKey: []byte(web2Data.WebAuthnKey),
 	}
 	if web2Data.Web2Private == "" {
 		private, err := Web2Init()
@@ -174,11 +177,11 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	web3User.RecoverID = hexutil.Encode(sig)
 
 	// verify random
-	verifyRandom, err := rscrypto.GetRandomInt(5)
+	verifyRandom, err := rscrypto.GetRandomInt(4)
 	if err != nil {
 		return nil, err
 	}
-	p.VerifyRandom = rscrypto.AesEncryptECB([]byte(fmt.Sprintf("%v", verifyRandom)), p.Web2Key)
+	p.Web2Data.Nonce = rscrypto.AesEncryptECB([]byte(fmt.Sprintf("%v", verifyRandom)), p.Web2Key)
 
 	// update user
 	p.Web3Key = []byte(web3Key)
@@ -195,7 +198,6 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	}
 	web3User.QRCode = qrcode
 	web3User.Web2Data = web2Data
-	web3User.Random = verifyRandom
 	LogDebugf("after encrypt: %+v, %+v, web3KeyBuf: %v, web2Private: %s", p, web3User, web3KeyBuf, hexutil.Encode(crypto.FromECDSA(p.Web2Private)))
 	return web3User, nil
 }
@@ -297,53 +299,59 @@ func (p *User) VerifyTOTP(code string) error {
 	return nil
 }
 
-func (p *User) GetRelateVerifyNonce(relateVerifyTimes string) (any, error) {
-	verifyRandom, err := strconv.ParseInt(string(rscrypto.AesDecryptECB(p.VerifyRandom, p.Web2Key)), 10, 64)
-	if err != nil {
-		return "", err
-	}
-	relateTimes, err := strconv.Atoi(relateVerifyTimes)
+func (p *User) GetRelateVerifyParams(action string) (any, error) {
+	var nonce string
+	var resultErr error
+	var message string
+	dhKey, err := rscrypto.GetDhKey(p.Web3Public, p.Web2Private)
 	if err != nil {
 		return "", err
 	}
 
-	// remove self
-	relateTimes -= 1
+	if action == c_verify_action_dapp {
+		message = fmt.Sprintf("%d", time.Now().UnixNano())
+		nonce = hexutil.Encode(rscrypto.AesEncryptECB([]byte(message), []byte(dhKey)))
+	} else {
+		verifyNonce, err := strconv.ParseInt(string(rscrypto.AesDecryptECB(p.Web2Data.Nonce, []byte(dhKey))), 10, 64)
+		if err != nil {
+			return "", err
+		}
+		verifyNonce += 1
+		verifyNonce1 := fmt.Sprintf("web2-%d", verifyNonce)
+		verifyNonce2 := fmt.Sprintf("wasm-%d", verifyNonce)
+		nonce = fmt.Sprintf("%s_%s", verifyNonce1, verifyNonce2)
+		message = verifyNonce2
+	}
+	if resultErr != nil {
+		return nil, resultErr
+	}
 
-	nonce, err := rscrypto.GetRandomInt(4)
+	msgHash := rscrypto.EthHash([]byte(message))
+	sig, err := crypto.Sign(msgHash.Bytes(), p.Web2Private)
 	if err != nil {
 		return nil, err
 	}
-	if relateTimes > 0 {
-		// last relateVerifyNonce + 1 * systemNonce
-		nonce = p.relateVerifyNonce + int64(p.Web2Data.SystemNonce)
-	}
-	p.relateVerifyNonce = nonce
-	LogDebugf("GetRelateVerifyNonce successed, verifyRandom: %d, nonce: %d, systemNonce: %d", verifyRandom, nonce, p.Web2Data.SystemNonce)
 
+	// debug logic
+	// verifyResult := crypto.VerifySignature(crypto.CompressPubkey(&p.Web2Private.PublicKey), msgHash.Bytes(), sig[:len(sig)-1])
+	// verifyPublic, _ := crypto.Ecrecover(msgHash.Bytes(), sig)
+	// verifySuccessed := bytes.Compare(crypto.FromECDSAPub(&p.Web2Private.PublicKey), verifyPublic) == 0
+	// LogDebugf("sig: %s, %v, %d, verify: %v, err: %+v, result: %v", hexutil.Encode(sig), sig, len(sig), verifySuccessed, err, verifyResult)
+
+	sig[64] = uint8(int(sig[64])) + 27 // Yes add 27, weird Ethereum quirk
+	message = fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len([]byte(message)), []byte(message))
 	output := struct {
-		Nonce       string
-		RelateNonce int64
+		Nonce     string `json:"nonce"`
+		Message   string `json:"message"`
+		Signature string `json:"signature"`
 	}{
-		Nonce:       fmt.Sprintf("%d", int64(p.Web2Data.SystemNonce*33)+verifyRandom+nonce),
-		RelateNonce: nonce,
+		nonce,
+		message,
+		hexutil.Encode(sig),
 	}
 	return output, nil
 }
 
-func (p *User) GetDynamicVerifyNonce() (any, error) {
-	nonce, err := rscrypto.GetRandomInt(4)
-	if err != nil {
-		return nil, err
-	}
-	LogDebugf("GetDynamicVerifyNonce successed, nonce: %d, systemNonce: %d", nonce, p.Web2Data.SystemNonce)
-
-	output := struct {
-		Nonce       string
-		RelateNonce int64
-	}{
-		Nonce:       fmt.Sprintf("%d", int64(p.Web2Data.SystemNonce*33)+nonce),
-		RelateNonce: nonce,
-	}
-	return output, nil
+func (p *User) CheckVerifyNonce(nonce string) (any, error) {
+	return string(rscrypto.AesDecryptECB([]byte(nonce), p.Web3Key)) != "", nil
 }

@@ -28,7 +28,7 @@ func Init() *Worker {
 
 func newWorker() *Worker {
 	// rslog.SetLevel("debug")
-	// rslog.SetDepth(5)
+	// rslog.SetDepth(6)
 	s := new(Worker)
 	private, ecdsaErr := crypto.GenerateKey()
 	FatalCheck(ecdsaErr)
