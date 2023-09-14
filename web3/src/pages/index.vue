@@ -17,6 +17,8 @@ import HomePanel from './home.vue';
 import VaultPanel from './vault.vue';
 import WalletPanel from './wallet.vue';
 import WebauthnPanel from './webauthn.vue';
+import * as selfweb3 from '../logic/index.js';
+
 export default {
     components: {
         TOTPPanel,
@@ -28,7 +30,7 @@ export default {
     inject: ["reload"],
     data() {
         return {
-            selfID: '',
+            selfAddress: '',
             connect: false,
             wasmPublic: '',
             web2Address: '',
@@ -56,14 +58,56 @@ export default {
         },
         webAuthnLogin() {
             let self = this;
-            const go = new Go();
-            this.enableSpin(true);
-            WebAssembly.instantiateStreaming(fetch("selfweb3.wasm"), go.importObject)
-            .then(function(result) {
-                console.log('load wasm successed: ', result)
-                go.run(result.instance);
-                self.initBackend();
-            })
+            let showMsg = function(err, flow, msg, param) {
+                console.log(err, flow, msg, param)
+            }
+        
+            // 初始化js库
+            let walletAddress = this.walletAddress;
+            var provider = this.$refs.walletPanel.web3.currentProvider;
+            selfweb3.Init(showMsg, this.enableSpin, function() {
+                // init web3
+                selfweb3.GetWeb3().Web3Init(provider, function(){
+                    // inputWeb2Key: 用户自己输入web2服务密钥, 可先为空
+                    selfweb3.GetUser().Init(walletAddress, '', function(selfAddress, web2Address) {
+
+                        self.selfAddress = selfAddress;
+                        self.web2Address = web2Address;
+
+                        // check registered
+                        selfweb3.GetUser().Registered(walletAddress, selfAddress, function(registered, bound){
+                            if (registered === true) {
+                                if (bound === true) {
+                                    // 已注册, 钱包地址一致, 开始加载用户私有信息
+                                    selfweb3.GetUser().Load(walletAddress, selfAddress, web2Address, function(){
+                                        var contractAddress = selfweb3.GetWeb3().contractAddrMap[selfweb3.GetWeb3().networkId];
+                                        console.log(selfAddress, web2Address, contractAddress)
+                                        console.log('// 已注册, 钱包地址一致, 用拿到的地址信息初始化profile(第一个卡片的内容), 用户加载流程完成')
+                                        self.$refs.privatePanel.init(selfweb3.Props['recoverID'], selfweb3.Props['web3Public']);
+                                    });
+                                } else {
+                                    console.log('// 已注册, 但钱包地址不一致, 弹出modal框提示是否重新绑定钱包, 启动钱包重新绑定流程')
+                                }
+                            } else {
+                                console.log('// 尚未注册')
+                                self.$refs.privatePanel.hasRegisted = false;
+                            }
+                        })
+                    }, function(err){
+                        console.log('// 已注册, 钱包地址一致, 但需要用户自行输入web2服务密钥解密私有数据, 弹出modal框提示用户输入web2服务密钥, 确认后重新走user.Load流程')
+                    })
+                })
+            });
+
+            // let self = this;
+            // const go = new Go();
+            // this.enableSpin(true);
+            // WebAssembly.instantiateStreaming(fetch("selfweb3.wasm"), go.importObject)
+            // .then(function(result) {
+            //     console.log('load wasm successed: ', result)
+            //     go.run(result.instance);
+            //     self.initBackend();
+            // })
         },
         onAccountChanged(action, network, address) {
             let self = this;
@@ -79,14 +123,14 @@ export default {
                 window.location.reload();
             }
         },
-        initWeb3(selfID, web2Address) {
+        initWeb3(selfAddress, web2Address) {
             let self = this;
-            this.selfID = selfID;
+            this.selfAddress = selfAddress;
             this.web2Address = web2Address;
             let message = 'SelfWeb3 Init: ' + (new Date()).getTime();
             self.signTypedData(message, function(sig) {
                 var loadParams = [];
-                loadParams.push(selfID);
+                loadParams.push(selfAddress);
                 loadParams.push(sig);
                 loadParams.push(Web3.utils.asciiToHex(message));
                 self.$refs.walletPanel.Execute("call", "Load", self.walletAddress, 0, loadParams, function (loadResult) {

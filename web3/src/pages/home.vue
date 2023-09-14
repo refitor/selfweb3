@@ -59,6 +59,7 @@ import Web3 from "web3";
 import CryptoJS from 'crypto-js'
 import emailjs from '@emailjs/browser';
 import VueQrcode from '@chenfengyuan/vue-qrcode';
+import * as selfweb3 from '../logic/index.js';
 export default {
     components: {
         VueQrcode
@@ -128,7 +129,7 @@ export default {
             web3Key: '',
             recoverID: '',
             web3Public: '',
-            hasRegisted: false
+            hasRegisted: true
         }
     },
     mounted: function () {
@@ -141,7 +142,7 @@ export default {
             this.recoverID = recoverID;
             this.web3Public = web3Public;
             const web2Address = this.$parent.getSelf().web2Address;
-            this.addKV('SelfID', {'value': this.$parent.getSelf().selfID}, true);
+            this.addKV('SelfID', {'value': this.$parent.getSelf().selfAddress}, true);
             const contractAddr = this.$parent.getSelf().getWallet().contractAddrMap[this.$parent.getSelf().getWallet().networkId];
             this.addKV('Wallet', {'btnName': 'View', 'value': this.$parent.getSelf().getWalletAddress(), 'url': 'https://etherscan.io/token/' + this.$parent.getSelf().getWalletAddress()}, false);
             this.addKV('Contract', {'btnName': 'View', 'value': contractAddr, 'url': 'https://etherscan.io/token/' + contractAddr}, false);
@@ -167,41 +168,50 @@ export default {
                 return;
             }
             this.popModal = false;
-            self.$parent.getSelf().enableSpin(true);
 
-            // wasm
-            let response = {};
-            let userID = self.$parent.getSelf().getWalletAddress();
-            WasmRegister(userID, this.modelKey, function(wasmResponse) {
-                response['data'] = JSON.parse(wasmResponse);
-                if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                    self.$parent.getSelf().wasmCallback("Register", response.data['Error'], false);
-                } else {
-                    self.$parent.getSelf().wasmCallback("Register");
-                    var registParams = [];
-                    registParams.push(self.$parent.getSelf().selfID);
-                    registParams.push(Web3.utils.asciiToHex(response.data['Data']['RecoverID']));
-                    registParams.push(Web3.utils.asciiToHex(response.data['Data']['Web3Key']));
-                    registParams.push(Web3.utils.asciiToHex(response.data['Data']['Web3Public']));
-                    // 流程: contract.Register ===> webAuthnRegister ===> /api/datas/store ===> TOTP QRCode
-                    self.$parent.getSelf().getWallet().Execute("send", "Register", self.$parent.getSelf().getWalletAddress(), 0, registParams, function (result) {
-                        let recoverID = self.modelKey;
-                        self.hasRegisted = true;
-                        self.resetModal();
-
-                        self.$parent.getSelf().$refs.webauthn.webRegister(userID, function(){
-                            self.$parent.getSelf().enableSpin(false);
-                            self.storeWeb2Data(userID, recoverID, response.data['Data']['Web2Data'], response.data['Data']['QRCode']);
-                        }, function() {
-                            self.$parent.getSelf().enableSpin(false);
-                            self.$Message.error('webAuthn register failed');
-                        });
-                    }, function (err) {
-                        self.$parent.getSelf().enableSpin(false);
-                        self.$Message.error('web3 contract: register failed');
-                    })
-                }
+            selfweb3.GetUser().Register(self.$parent.getSelf().selfAddress, self.$parent.getSelf().getWalletAddress(), self.modelKey, function(qrcode){
+                self.showQRcode(qrcode);
+                setTimeout(function() {
+                    self.qrcodeUrl = '';
+                    window.location.reload();
+                }, 60000);
             })
+
+            // self.$parent.getSelf().enableSpin(true);
+
+            // // wasm
+            // let response = {};
+            // let userID = self.$parent.getSelf().getWalletAddress();
+            // WasmRegister(userID, this.modelKey, function(wasmResponse) {
+            //     response['data'] = JSON.parse(wasmResponse);
+            //     if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
+            //         self.$parent.getSelf().wasmCallback("Register", response.data['Error'], false);
+            //     } else {
+            //         self.$parent.getSelf().wasmCallback("Register");
+            //         var registParams = [];
+            //         registParams.push(self.$parent.getSelf().selfAddress);
+            //         registParams.push(Web3.utils.asciiToHex(response.data['Data']['RecoverID']));
+            //         registParams.push(Web3.utils.asciiToHex(response.data['Data']['Web3Key']));
+            //         registParams.push(Web3.utils.asciiToHex(response.data['Data']['Web3Public']));
+            //         // 流程: contract.Register ===> webAuthnRegister ===> /api/datas/store ===> TOTP QRCode
+            //         self.$parent.getSelf().getWallet().Execute("send", "Register", self.$parent.getSelf().getWalletAddress(), 0, registParams, function (result) {
+            //             let recoverID = self.modelKey;
+            //             self.hasRegisted = true;
+            //             self.resetModal();
+
+            //             self.$parent.getSelf().$refs.webauthn.webRegister(userID, function(){
+            //                 self.$parent.getSelf().enableSpin(false);
+            //                 self.storeWeb2Data(userID, recoverID, response.data['Data']['Web2Data'], response.data['Data']['QRCode']);
+            //             }, function() {
+            //                 self.$parent.getSelf().enableSpin(false);
+            //                 self.$Message.error('webAuthn register failed');
+            //             });
+            //         }, function (err) {
+            //             self.$parent.getSelf().enableSpin(false);
+            //             self.$Message.error('web3 contract: register failed');
+            //         })
+            //     }
+            // })
         },
         beforeRecover() {
             let self = this;
@@ -253,7 +263,7 @@ export default {
             }
             this.popModal = false;
 
-            let selfID = self.$parent.getSelf().selfID;
+            let selfAddress = self.$parent.getSelf().selfAddress;
             let userID = self.$parent.getSelf().getWalletAddress();
             if (self.resetKind === "TOTP") {
                 let resetMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Public": self.web3Public};
@@ -326,7 +336,7 @@ export default {
             let verifyWebAuthn = function(params) {
                 // 关联性webAuthn校验，依赖zkParams链上校验提取web3Key
                 let loadParams = [];
-                loadParams.push(self.$parent.getSelf().selfID);
+                loadParams.push(self.$parent.getSelf().selfAddress);
                 loadParams = loadParams.concat(params);
                 self.$parent.getSelf().$refs.walletPanel.Execute("call", "Web3Key", userID, 0, loadParams, function (loadResult) {
                     console.log('web3 contract: Load from contract successed: ', loadResult);
@@ -398,12 +408,12 @@ export default {
         },
         showQRcode(totpKey) {
             // Google authenticator doesn't like equal signs
-            let userID = this.$parent.getSelf().selfID;
+            let userID = this.$parent.getSelf().selfAddress;
             // let walletAddress = this.$parent.getSelf().getWalletAddress();
-            let selfID = userID.substring(0, 4) + "..." + userID.substring(userID.length - 4, userID.length);
+            let selfAddress = userID.substring(0, 4) + "..." + userID.substring(userID.length - 4, userID.length);
 
             // to create a URI for a qr code (change totp to hotp if using hotp)
-            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + selfID;
+            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + selfAddress;
             this.qrcodeUrl = 'otpauth://totp/' + totpName + '?secret=' + totpKey.replace(/=/g,'');
         },
         pageWidth(){

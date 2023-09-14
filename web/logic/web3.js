@@ -6,7 +6,7 @@ export let web3 = null;
 export let networkId ='';
 export const contractAddrMap = {
     '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
-    '1': '0x85EAB754733e996C422b4617A8F4D177B6B5D187',
+    '1': '0xEa9b5Ca4434dbCC8605570479C13B0be297350e6',
     '421613': '0x7B6E05a55B1756f827F205BF454BF75288904ecF'
 }
 export let ContractABI = selfWeb3ABI;
@@ -74,8 +74,6 @@ export async function Web3Execute(executeFunc, methodName, walletAddress, msgVal
         await sendObject.send({ from: walletAddress, value: msgValue, gasLimit: gasAmount })
             .on('transactionHash', function (hash) {
                 console.log('transactionHash:', hash);
-                // self.$Message.success('web3Execute run succesed: ', hash);
-                ShowMsg('error', 'web3Execute run succesed: ', hash)
             })
             .on('confirmation', function (confirmationNumber, receipt) {
             })
@@ -91,7 +89,7 @@ export async function Web3Execute(executeFunc, methodName, walletAddress, msgVal
 }
 
 // callback: function(signature)
-export function Sign(flow, walletAddress, msg, callback) {
+export function Sign(flow, walletAddress, msg, callback, failed) {
     var msgParams = [
         {
             type: 'string',
@@ -109,7 +107,7 @@ export function Sign(flow, walletAddress, msg, callback) {
         from,
     }, function (error, result) {
         if (error || result.error) {
-            doShowMsg('error', flow, 'sign message failed: ', error);
+            if (failed !== null && failed !== undefined) failed('sign message failed: ', error);
             return
         }
         if (callback !== null && callback !== undefined) callback(result.result);

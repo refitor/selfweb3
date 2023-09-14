@@ -103,11 +103,12 @@ export function httpGet(url, params, callback, failed) {
 export function httpPost(url, formdata, callback, failed) {
     fetch(url, {
         method: 'POST',
-        form: formdata,
+        body: formdata,
     })
     .then(checkStatus(200))
     .then(res => checkError(res, failed))
     .then((response) => {
+        console.log('------------', response)
         if (callback !== undefined && callback !== null) callback(response);
     })
 }
@@ -127,4 +128,5 @@ function checkError(response, failed) {
     }
     console.log('checkError: ', response['Error']);
     if (failed !== undefined && failed !== null) failed();
+    throw new Error(response['Error']);
 }

@@ -83,8 +83,9 @@ contract SelfWeb3 is Ownable {
         SelfData memory sd = _getKV(selfAddress);
         require(wallet == sd.wallet, "permission denied with invalid wallet");
         require(sd.web3Public.length != 0, "not registered yet");
-        require(SelfValidator.RelateVerify(selfAddress, md.web2Address, sd.verifyRoot, vparam) == sd.verifyRoot, "on-chain signature verification for wallet rebind failed");
-        sd = SelfData(msg.sender, sd.recoverID, sd.web3Key, sd.web3Public, bytes32(0));
+        bytes32 verifyRoot = SelfValidator.RelateVerify(selfAddress, md.web2Address, sd.verifyRoot, vparam);
+        require(verifyRoot != '', "on-chain signature verification for wallet rebind failed");
+        sd = SelfData(msg.sender, sd.recoverID, sd.web3Key, sd.web3Public, verifyRoot);
         _setKV(selfAddress, sd);
     }
 
@@ -97,7 +98,7 @@ contract SelfWeb3 is Ownable {
         MetaData memory md = _get();
         SelfData memory sd = _getKV(selfAddress);
         require(sd.web3Public.length != 0, "not registered yet");
-        require(SelfValidator.RelateVerify(selfAddress, md.web2Address, sd.verifyRoot, vparam) == sd.verifyRoot, "on-chain signature verification for Web3Key failed");
+        SelfValidator.RelateVerify(selfAddress, md.web2Address, sd.verifyRoot, vparam);
         return sd.web3Key;
     }
 
