@@ -1,0 +1,206 @@
+[
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "web2Address",
+				"type": "address"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "bytes",
+				"name": "signature",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "message",
+				"type": "bytes"
+			}
+		],
+		"name": "Load",
+		"outputs": [
+			{
+				"internalType": "bytes",
+				"name": "recoverID",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "web3Public",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "Meta",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "registTotal",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "wallet",
+				"type": "address"
+			},
+			{
+				"internalType": "bytes",
+				"name": "vparam",
+				"type": "bytes"
+			}
+		],
+		"name": "Rebind",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "bytes",
+				"name": "recoverID",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "web3Key",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "web3Public",
+				"type": "bytes"
+			}
+		],
+		"name": "Register",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			}
+		],
+		"name": "Registered",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "registered",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "bytes",
+				"name": "vparam",
+				"type": "bytes"
+			}
+		],
+		"name": "Web3Key",
+		"outputs": [
+			{
+				"internalType": "bytes",
+				"name": "web3Key",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+]
