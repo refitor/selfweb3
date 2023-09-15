@@ -26,10 +26,9 @@ const (
 	c_param_web3Public  = "web3Public"
 	c_param_relateTimes = "relateTimes"
 
-	c_verify_action          = "action"
-	c_verify_action_dapp     = "dapp"
-	c_verify_action_deposit  = "deposit"
-	c_verify_action_withdraw = "withdraw"
+	c_verify_action         = "action"
+	c_verify_action_query   = "query"
+	c_verify_action_update  = "update"
 )
 
 type Web3User struct {
@@ -308,7 +307,7 @@ func (p *User) GetRelateVerifyParams(action string) (any, error) {
 		return "", err
 	}
 
-	if action == c_verify_action_dapp {
+	if action == c_verify_action_query {
 		message = fmt.Sprintf("%d", time.Now().UnixNano())
 		nonce = hexutil.Encode(rscrypto.AesEncryptECB([]byte(message), []byte(dhKey)))
 	} else {
@@ -339,7 +338,7 @@ func (p *User) GetRelateVerifyParams(action string) (any, error) {
 	// LogDebugf("sig: %s, %v, %d, verify: %v, err: %+v, result: %v", hexutil.Encode(sig), sig, len(sig), verifySuccessed, err, verifyResult)
 
 	sig[64] = uint8(int(sig[64])) + 27 // Yes add 27, weird Ethereum quirk
-	message = fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len([]byte(message)), []byte(message))
+	message = fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len([]byte(message)), message)
 	output := struct {
 		Nonce     string `json:"nonce"`
 		Message   string `json:"message"`

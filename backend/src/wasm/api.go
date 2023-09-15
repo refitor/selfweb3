@@ -235,10 +235,12 @@ func wasmHandle(kind string, user *User, params ...string) (handleResult any, ha
 			handleResult, handleErr = user.GetRelateVerifyParams(paramMap[c_verify_action])
 		}
 	case c_method_ResetTOTPKey:
-		if err := user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); err != nil {
-			return nil, err
+		if handleErr = user.Load(paramMap[c_param_web3Key], paramMap[c_param_web3Public]); handleErr == nil {
+			outputMap := make(map[string]any, 0)
+			outputMap["Reset"], handleErr = user.ResetTOTPKey(params[len(params)-1], paramMap[c_param_recoverID])
+			outputMap["RelateVerify"], handleErr = user.GetRelateVerifyParams(paramMap[c_verify_action])
+			handleResult = outputMap
 		}
-		return user.ResetTOTPKey(params[len(params)-1], paramMap[c_param_recoverID])
 	case c_method_ResetWeb2Key:
 		return user.ResetWeb2Key(params[len(params)-1], paramMap[c_param_random], paramMap[c_param_web2Key])
 	case c_method_Web2Data:

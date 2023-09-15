@@ -157,22 +157,25 @@ export default {
             document.getElementById("code").value += document.getElementById("digits-6").value;
             const inputCode = document.getElementById("code").value;
 
-            // wasm
-            let response = {};
-            WasmVerify(this.$parent.getSelf().getWalletAddress(), inputCode, 'TOTP', this.verifyParams, function(wasmResponse) {
-                response['data'] = JSON.parse(wasmResponse);
-                if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                    if (response.data['Error'] === 'reload') {
-                        self.reload();
-                        return;
-                    }
-                    self.$Message.error('TOTP authenticator verify failed');
-                    self.$parent.getSelf().afterVerify(false, '');
-                } else {
-                    self.$Message.success('TOTP authenticator verify successed');
-                    self.$parent.getSelf().afterVerify(true, response.data['Data']);
-                }
-            })
+            self.$parent.getSelf().afterVerify(false, inputCode);
+
+            //// no logic js
+            // // wasm
+            // let response = {};
+            // WasmVerify(this.$parent.getSelf().getWalletAddress(), inputCode, 'TOTP', this.verifyParams, function(wasmResponse) {
+            //     response['data'] = JSON.parse(wasmResponse);
+            //     if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
+            //         if (response.data['Error'] === 'reload') {
+            //             self.reload();
+            //             return;
+            //         }
+            //         self.$Message.error('TOTP authenticator verify failed');
+            //         self.$parent.getSelf().afterVerify(false, '');
+            //     } else {
+            //         self.$Message.success('TOTP authenticator verify successed');
+            //         self.$parent.getSelf().afterVerify(true, response.data['Data']);
+            //     }
+            // })
         }
     }
 }

@@ -169,7 +169,9 @@ export default {
             }
             this.popModal = false;
 
-            selfweb3.GetUser().Register(self.$parent.getSelf().selfAddress, self.$parent.getSelf().getWalletAddress(), self.modelKey, function(qrcode){
+            let selfAddress = self.$parent.getSelf().selfAddress;;
+            let walletAddress = self.$parent.getSelf().getWalletAddress();
+            selfweb3.GetUser().Register(walletAddress, selfAddress, self.modelKey, function(qrcode){
                 self.showQRcode(qrcode);
                 setTimeout(function() {
                     self.qrcodeUrl = '';
@@ -177,6 +179,7 @@ export default {
                 }, 60000);
             })
 
+            //// no logic js
             // self.$parent.getSelf().enableSpin(true);
 
             // // wasm
@@ -228,32 +231,43 @@ export default {
             this.popModal = false;
             this.$parent.getSelf().enableSpin(true);
 
-            let response = {};
-            let userID = self.$parent.getSelf().getWalletAddress();
-            WasmAuthorizeCode(userID, this.modelKey, function(wasmResponse) {
-                response['data'] = JSON.parse(wasmResponse);
-                if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
-                    self.$parent.getSelf().wasmCallback("Register", response.data['Error'], false);
-                } else {
-                    // store web2Private
-                    let formdata = new FormData();
-                    formdata.append("userID", userID);
-                    formdata.append("kind", 'email');
-                    formdata.append("params", response.data['Data']);
-                    formdata.append("public", self.$parent.getSelf().wasmPublic);
-                    self.$parent.getSelf().httpPost("/api/datas/forward", formdata, function(forwardResponse) {
-                        if (forwardResponse.data['Error'] == '') {
-                            self.$Message.success('email push successed for recovery');
-                            self.$parent.getSelf().enableSpin(false);
-                            self.resetModal();
-                            self.modalMode = 'verify';
-                            self.popModal = true;
-                        } else {
-                            self.$parent.getSelf().enableSpin(false);
-                        }
-                    })
-                }
+            let selfAddress = self.$parent.getSelf().selfAddress;;
+            let walletAddress = self.$parent.getSelf().getWalletAddress();
+            selfweb3.GetVerify().BeginEmailVerify(self.$parent.getSelf().getWalletAddress(), this.modelKey, function(){
+                self.$Message.success('email push successed for recovery');
+                self.$parent.getSelf().enableSpin(false);
+                self.resetModal();
+                self.modalMode = 'verify';
+                self.popModal = true;
             })
+
+            //// no logic js
+            // let response = {};
+            // let userID = self.$parent.getSelf().getWalletAddress();
+            // WasmAuthorizeCode(userID, this.modelKey, function(wasmResponse) {
+            //     response['data'] = JSON.parse(wasmResponse);
+            //     if (response.data['Error'] !== '' && response.data['Error'] !== null && response.data['Error'] !== undefined) {
+            //         self.$parent.getSelf().wasmCallback("Register", response.data['Error'], false);
+            //     } else {
+            //         // store web2Private
+            //         let formdata = new FormData();
+            //         formdata.append("userID", userID);
+            //         formdata.append("kind", 'email');
+            //         formdata.append("params", response.data['Data']);
+            //         formdata.append("public", self.$parent.getSelf().wasmPublic);
+            //         self.$parent.getSelf().httpPost("/api/datas/forward", formdata, function(forwardResponse) {
+            //             if (forwardResponse.data['Error'] == '') {
+            //                 self.$Message.success('email push successed for recovery');
+            //                 self.$parent.getSelf().enableSpin(false);
+            //                 self.resetModal();
+            //                 self.modalMode = 'verify';
+            //                 self.popModal = true;
+            //             } else {
+            //                 self.$parent.getSelf().enableSpin(false);
+            //             }
+            //         })
+            //     }
+            // })
         },
         emailVerify() {
             let self = this;
@@ -263,32 +277,57 @@ export default {
             }
             this.popModal = false;
 
-            let selfAddress = self.$parent.getSelf().selfAddress;
-            let userID = self.$parent.getSelf().getWalletAddress();
-            if (self.resetKind === "TOTP") {
-                let resetMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Public": self.web3Public};
-                self.verifyEmail(this.modelKey, resetMap, function(wasmEmailResponse) {
-                    self.relationVerify(false, true, function(){
-                        self.storeWeb2Data(userID, '', wasmEmailResponse['Web2Data'], wasmEmailResponse['QRCode']);
-                    })
-                })
-            } else if (self.resetKind === "Wallet") {
-                console.log(self.resetKind)
-            } else if (self.resetKind === "Web2Key") {
-                console.log(self.resetKind)
-            }
+            let selfAddress = self.$parent.getSelf().selfAddress;;
+            let walletAddress = self.$parent.getSelf().getWalletAddress();
+            selfweb3.GetUser().Reset(walletAddress, selfAddress, this.modelKey, self.resetKind, function(resetParams){
+                if (self.resetKind === 'TOTP') {
+                    self.showQRcode(resetParams);
+                    setTimeout(function() {
+                        self.qrcodeUrl = '';
+                        window.location.reload();
+                    }, 60000);
+                }
+            })
+
+            //// no logic js
+            // let selfAddress = self.$parent.getSelf().selfAddress;
+            // let userID = self.$parent.getSelf().getWalletAddress();
+            // if (self.resetKind === "TOTP") {
+            //     let resetMap = {"method": "ResetTOTPKey", "recoverID": self.recoverID, "web3Public": self.web3Public};
+            //     self.verifyEmail(this.modelKey, resetMap, function(wasmEmailResponse) {
+            //         self.relationVerify(false, true, function(){
+            //             self.storeWeb2Data(userID, '', wasmEmailResponse['Web2Data'], wasmEmailResponse['QRCode']);
+            //         })
+            //     })
+            // } else if (self.resetKind === "Wallet") {
+            //     console.log(self.resetKind)
+            // } else if (self.resetKind === "Web2Key") {
+            //     console.log(self.resetKind)
+            // }
         },
         executeAction(name, params) {
             let self = this;
             const contractAddr = this.$parent.getSelf().getWallet().contractAddrMap[this.$parent.getSelf().getWallet().networkId];
             if (name === 'SelfVault') {
-                // TOTP校验成功后获取到WebAuthnKey, 触发webAuthnLogin
-                // 流程: WebAuthnKey获取 ===> webAuthnLogin ===> switchPanel
-                self.relationVerify(true, true, function() {
-                    self.$parent.getSelf().afterVerifyFunc = null;
-                    self.$parent.getSelf().afterVerify(true, '', name)
+                //// no logic js
+                // // TOTP校验成功后获取到WebAuthnKey, 触发webAuthnLogin
+                // // 流程: WebAuthnKey获取 ===> webAuthnLogin ===> switchPanel
+                // self.relationVerify(true, true, function() {
+                //     self.$parent.getSelf().afterVerifyFunc = null;
+                //     self.$parent.getSelf().afterVerify(true, '', name)
+                // }, function() {
+                //     self.$Message.error('Can not init SelfVault with relationVerify failed');
+                // })
+
+                let selfAddress = self.$parent.getSelf().selfAddress;;
+                let walletAddress = self.$parent.getSelf().getWalletAddress();
+                selfweb3.GetUser().EnterDapp(walletAddress, selfAddress, function(callback) {
+                    self.$parent.getSelf().RunTOTP(name, function(code) {
+                        callback(code);
+                    })
                 }, function() {
-                    self.$Message.error('Can not init SelfVault with relationVerify failed');
+                    self.$parent.getSelf().afterVerifyFunc = null;
+                    self.$parent.getSelf().afterVerify(true, '', name);
                 })
             } else {
                 this.$parent.getSelf().switchPanel(name, name, contractAddr);
