@@ -68,7 +68,7 @@
               <div class="col-4 col-sm-3 col-md-2"><img alt="image" class="fdb-icon" src="./imgs/web.png"></div>
               <div class="col-4 col-sm-3 col-md-2"><img alt="image" class="fdb-icon" src="./imgs/mobile.png"></div>
             </div>
-            <p class="lead">A web3 solution that provides privatization guarantees for high security and data ownership on the chain. Through mandatory dynamic authorization, one-to-one binding of user assets to itself instead of wallets, webAuthn + TOTP + zero-knowledge proof</p>
+            <p class="lead">A web3 solution that provides privatized guarantees for high security and data ownership on the chain. Through forced dynamic authorization, user assets are bound to themselves one-to-one instead of wallets, private dynamic authorization (Email + TOTP + WebAuthn) + multi-party signature guarantee + on-chain association verification</p>
             <p><a class="btn btn-secondary mt-4" href="/app">Launch App</a></p>
           </div>
         </div>
@@ -97,7 +97,7 @@
     
           <div class="col-12 ml-md-auto col-md-7 col-lg-6 pb-5 pb-md-0">
             <h2 style="text-align: center;">Dynamic Authorization</h2>
-            <p class="lead">Realize private dynamic authorization through webAuthn and TOTP, support passwordless dynamic verification and secondary authorization of sensitive operations, etc., provide high security protection for web2 environment for data on the web3 chain, and the public and private keys of the wallet can only guarantee A to B. Security, but does not include whether A and B are legal. The key to data ownership should be yourself, not the wallet</p>
+            <p class="lead">Private dynamic authorization is realized through various methods such as Email, WebAuthn and TOTP, and multi-party signature verification, Merkle tree association verification and replay attack verification are performed in the on-chain contract, and the data and operation rights on the web3 chain are forcibly bound. Determined to the user himself, it provides a high degree of security in the web2 environment for data on the web3 chain. The public and private keys of the wallet can only guarantee the security from A to B, but it does not include whether A and B themselves are legal. The key to data ownership should be yourself, and instead of the wallet</p>
             <!--p class="mt-4">
               <a class="btn btn-secondary" href="/auth/#/demo">Demo</a>
             </p-->
@@ -112,7 +112,7 @@
         <div class="row justify-content-center">
           <div class="col-12 col-md-8 text-center">
             <img alt="image" class="img-fluid" src="./imgs/selfweb3-design.jpg" style="padding-bottom: 20px;">
-            <p class="lead">The selfWeb3 contract guarantees that the data ownership is bound to the user by performing permission verification for all sensitive operations, including tokens, NFTs, and user data on the chain, etc., to completely control the data ownership on the chain from the source, and must first complete dynamic authorization under the chain , and then generate a zero-knowledge proof, and finally the contract verifies and confirms the right</p>
+            <p class="lead">The selfWeb3 contract ensures that data ownership is bound to the user himself by performing on-chain verification for all sensitive operations, including tokens, NFTs, and user data on the chain. It completely controls the ownership of data on the chain from the source and must first complete the private process off-chain. Dynamic authorization, and multi-party signature guarantee and generation of Merkle tree proof are verified by the contract for legality</p>
           </div>
         </div>
       </div>
@@ -125,7 +125,7 @@
           <div class="col-12 col-md-6 col-lg-5">
             
             <h1 style="text-align: center;"><img alt="image" class="fdb-icon" src="./imgs/github.svg"> Open source</h1>
-            <p class="lead">All source codes of selfWeb3 are open source on Github, including contracts, front-end and back-end, and related service components. At the same time, web2 services only provide targeted business value-added services based on user ciphertext. All core functions are dynamically calculated by wasm part. If you are worried about the security of private dynamic authorization, you can build and deploy by yourself, but only for your own use. Please do not use any unofficial public sites for interaction</p>
+            <p class="lead">All source codes of selfWeb3 are all open source on Github, including contracts, front-end and related service components. At the same time, the web2 service only provides directional business value-added services based on user ciphertext. All core functions are dynamically calculated by the wasm part. Since the authorization operation is in the chain Completed below. If you are worried about the security of web2 service centralization, you can choose web3 mode or build and deploy it yourself, but it is only for your own use. Please do not use any unofficial public sites for interaction</p>
             <p class="mt-4">
               <a class="btn btn-secondary" href="https://github.com/refitor/selfWeb3">Github</a>
             </p>
