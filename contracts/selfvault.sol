@@ -38,15 +38,20 @@ contract SelfVault is Ownable, SelfWeb3 {
     function Deposit(address selfAddress, bytes memory vparam) external payable {
         MetaData memory md = _get();
         SelfData memory sd = _getKV(selfAddress);
-        require(msg.value > 0, "invalid deposited amount");
-        require(sd.web3Public.length != 0, "not registered yet");
 
         // on-chain associated validation
-        bytes32 verifyRoot = SelfValidator.RelateVerify(selfAddress, md.web2Address, sd.verifyRoot, vparam);
-        if(verifyRoot != sd.verifyRoot) {
-            sd.verifyRoot = verifyRoot;
+        address[] memory sigAddrList = new address[](2);
+        sigAddrList[0] = selfAddress;
+        sigAddrList[1] = md.Web2Address;
+        bytes32 verifyRoot = SelfValidator.RelateVerify(sd.VerifyRoot, vparam, sigAddrList); // Prioritize verification
+        if(verifyRoot != sd.VerifyRoot && verifyRoot != bytes32(0)) {
+            sd.VerifyRoot = verifyRoot;
             _setKV(selfAddress, sd);
         }
+        delete sigAddrList;
+
+        require(msg.value > 0, "invalid deposited amount");
+        require(sd.SelfPrivate.length != 0, "not registered yet");
 
         // on-chain vault management
         _setVault(address(0), _getVault(address(0)) + msg.value);
@@ -61,15 +66,20 @@ contract SelfVault is Ownable, SelfWeb3 {
     function Withdraw(address selfAddress, bytes memory vparam, uint256 amount) external payable returns (uint256) {
         MetaData memory md = _get();
         SelfData memory sd = _getKV(selfAddress);
-        require(amount > 0, "invalid withdraw amount");
-        require(sd.web3Public.length != 0, "not registered yet");
 
         // on-chain associated validation
-        bytes32 verifyRoot = SelfValidator.RelateVerify(selfAddress, md.web2Address, sd.verifyRoot, vparam);
-        if(verifyRoot != sd.verifyRoot) {
-            sd.verifyRoot = verifyRoot;
+         address[] memory sigAddrList = new address[](2);
+        sigAddrList[0] = selfAddress;
+        sigAddrList[1] = md.Web2Address;
+        bytes32 verifyRoot = SelfValidator.RelateVerify(sd.VerifyRoot, vparam, sigAddrList); // Prioritize verification
+        if(verifyRoot != sd.VerifyRoot && verifyRoot != bytes32(0)) {
+            sd.VerifyRoot = verifyRoot;
             _setKV(selfAddress, sd);
         }
+        delete sigAddrList;
+
+        require(amount > 0, "invalid withdraw amount");
+        require(sd.SelfPrivate.length != 0, "not registered yet");
 
         // on-chain vault management
         VaultMeta memory vm = _getVaultMeta();

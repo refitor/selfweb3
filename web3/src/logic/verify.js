@@ -1,5 +1,4 @@
 "use strict"
-import Web3 from "web3";
 import * as selfweb3 from './index.js';
 
 export const Flow_TOTPVerify = "TOTPVerify";
@@ -21,7 +20,7 @@ export function BeginEmailVerify(walletAddress, email, callback) {
             formdata.append("kind", 'email');
             formdata.append("params", response['Data']);
             formdata.append("public", selfweb3.GetProps('wasmPublic'));
-            selfweb3.httpPost("/api/datas/forward", formdata, function(forwardResponse) {
+            selfweb3.httpPost(selfweb3.GetProps('ApiPrefix') + "/api/datas/forward", formdata, function(forwardResponse) {
                 if (forwardResponse['Error'] == '') {
                     if (callback !== undefined && callback !== null) callback();
                 } else {
@@ -33,7 +32,7 @@ export function BeginEmailVerify(walletAddress, email, callback) {
 }
 
 export function FinishEmailVerify(walletAddress, code, verifyParams, callback) {
-    WasmVerify(walletAddress, code, 'email', verifyParams, function(wasmResponse) {
+    WasmVerify(walletAddress, code, 'Email', verifyParams, function(wasmResponse) {
         let response = JSON.parse(wasmResponse);
         if (response['Error'] !== '' && response['Error'] !== null && response['Error'] !== undefined) {
             selfweb3.ShowMsg("error", Flow_FinishEmailVerify, "email verify failed", response['Error']);
@@ -57,36 +56,16 @@ export function TOTPVerify(flow, walletAddress, code, verifyParams, callback) {
     })
 }
 
-export function WebAuthnVerify(flow, walletAddress, selfAddress, verifyParams, callback) {
-    let loadParams = [];
-    let userID = walletAddress;
-    loadParams.push(selfAddress);
-    loadParams = loadParams.concat(verifyParams);
-    selfweb3.GetWeb3().Execute("call", "Web3Key", walletAddress, 0, loadParams, function (loadResult) {
-        console.log('load web3Key successed: ', loadResult);
-        let web3Map = {"method": "WebAuthnKey", "web3Key": Web3.utils.hexToAscii(loadResult), "web3Public": selfweb3.GetProps('web3Public')};
-        WasmHandle(userID, JSON.stringify(web3Map), function(wasmWebAuthnResponse) {
-            WebAuthnLogin(flow, walletAddress, JSON.parse(wasmWebAuthnResponse)['Data'], function() {
-                if (callback !== undefined && callback !== null) callback();
-            }, function(err) {
-                selfweb3.ShowMsg('error', flow, 'webAuthn verify failed', err);
-            })
-        })
-    }, function (err) {
-        selfweb3.ShowMsg('error', flow, 'webAuthn verify failed', err);
-    })
-}
-
 export function WebAuthnRegister(flow, userID, callback, failed) {
     let handleFailed = function(err) {
         selfweb3.ShowMsg("error", flow, ' webAuthn register failed', err);
-        if (failed !== undefined && failed !== null) failed(response['Error']);
+        if (failed !== undefined && failed !== null) failed(err);
     }
 
     // let name = walletAddress; //"wallet-" + walletAddress.substring(0, 4) + "..." + walletAddress.substring(walletAddress.length - 4, walletAddress.length);
     let formdata = new FormData();
     formdata.append('userID', userID);
-    fetch('/api/user/begin/register', {
+    fetch(selfweb3.GetProps('ApiPrefix') + '/api/user/begin/register', {
         method: 'POST',
         body: formdata,
     })
@@ -113,7 +92,7 @@ export function WebAuthnRegister(flow, userID, callback, failed) {
         let rawId = credential.rawId;
 
         console.log('=================222: ', credential, "++++", clientDataJSON, attestationObject)
-        fetch('/api/user/finish/register?userID=' + userID, {
+        fetch(selfweb3.GetProps('ApiPrefix') + '/api/user/finish/register?userID=' + userID, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -140,13 +119,13 @@ export function WebAuthnRegister(flow, userID, callback, failed) {
 export function WebAuthnLogin(flow, userID, webAuthnKey, callback, failed) {
     let handleFailed = function(err) {
         selfweb3.ShowMsg("error", flow, 'webAuthn login failed', err);
-        if (failed !== undefined && failed !== null) failed(response['Error']);
+        if (failed !== undefined && failed !== null) failed(err);
     }
 
     let formdata = new FormData();
     formdata.append('userID', userID);
     formdata.append('webAuthnKey', webAuthnKey);
-    fetch('/api/user/begin/login', {
+    fetch(selfweb3.GetProps('ApiPrefix') + '/api/user/begin/login', {
         method: 'POST',
         body: formdata,
     })
@@ -171,7 +150,7 @@ export function WebAuthnLogin(flow, userID, webAuthnKey, callback, failed) {
         let userHandle = assertion.response.userHandle;
 
         console.log('=================444: ', assertion)
-        fetch('/api/user/finish/login?userID=' + userID, {
+        fetch(selfweb3.GetProps('ApiPrefix') + '/api/user/finish/login?userID=' + userID, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',

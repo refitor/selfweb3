@@ -171,8 +171,8 @@ export default {
 
             let selfAddress = self.$parent.getSelf().selfAddress;;
             let walletAddress = self.$parent.getSelf().getWalletAddress();
-            selfweb3.GetUser().Register(walletAddress, selfAddress, self.modelKey, function(qrcode){
-                self.showQRcode(qrcode);
+            selfweb3.GetUser().Register(walletAddress, selfAddress, self.modelKey, function(address, qrcode){
+                self.showQRcode(address, qrcode);
                 setTimeout(function() {
                     self.qrcodeUrl = '';
                     window.location.reload();
@@ -281,7 +281,7 @@ export default {
             let walletAddress = self.$parent.getSelf().getWalletAddress();
             selfweb3.GetUser().Reset(walletAddress, selfAddress, this.modelKey, self.resetKind, function(resetParams){
                 if (self.resetKind === 'TOTP') {
-                    self.showQRcode(resetParams);
+                    self.showQRcode(selfAddress, resetParams);
                     setTimeout(function() {
                         self.qrcodeUrl = '';
                         window.location.reload();
@@ -445,14 +445,14 @@ export default {
                 }
             })
         },
-        showQRcode(totpKey) {
+        showQRcode(selfAddress, totpKey) {
             // Google authenticator doesn't like equal signs
-            let userID = this.$parent.getSelf().selfAddress;
+            let userID = selfAddress;
             // let walletAddress = this.$parent.getSelf().getWalletAddress();
-            let selfAddress = userID.substring(0, 4) + "..." + userID.substring(userID.length - 4, userID.length);
+            let selfID = userID.substring(0, 4) + "..." + userID.substring(userID.length - 4, userID.length);
 
             // to create a URI for a qr code (change totp to hotp if using hotp)
-            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + selfAddress;
+            const totpName = 'selfWeb3-' + this.$parent.getSelf().getWallet().networkId + ':' + selfID;
             this.qrcodeUrl = 'otpauth://totp/' + totpName + '?secret=' + totpKey.replace(/=/g,'');
         },
         pageWidth(){

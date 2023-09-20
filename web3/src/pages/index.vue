@@ -4,7 +4,7 @@
             <WebauthnPanel ref="webauthn" />
             <WalletPanel ref="walletPanel" :onAccountChanged="onAccountChanged" />
             <TOTPPanel v-if="showTOTP" ref="totpPanel" :getSelf="getSelf"/>
-            <HomePanel v-show="showHomePanel && !showTOTP" ref="privatePanel" :getSelf="getSelf"/>
+            <HomePanel v-show="showIndexPanel && !showTOTP" ref="homePanel" :getSelf="getSelf"/>
             <VaultPanel v-show="showPanels['SelfVault'] && !showTOTP" ref="SelfVault" :getSelf="getSelf"/>
         </div>
         <Spin size="large" fix v-if="showSpin"></Spin>
@@ -38,7 +38,7 @@ export default {
 
             showTOTP: false,
             justVerify: false,
-            showHomePanel: true,
+            showIndexPanel: true,
             showPanels: {},
 
             panelName: '',
@@ -56,43 +56,42 @@ export default {
         enableSpin(status) {
             this.showSpin = status;
         },
-        webAuthnLogin() {
+        async sysLoad(walletAddress) {
             let self = this;
             let showMsg = function(err, flow, msg, param) {
                 console.log({'flow': flow, 'error': err === 'error', 'msg': msg, 'param': param});
             }
 
+            // user初始化成功回调
+            const initUserSuccessCb = async function(selfAddress, web2Address) {
+                self.selfAddress = selfAddress;
+                self.web2Address = web2Address;
+
+                // check registered
+                const { registered, bound } = await selfweb3.GetUser().Registered(walletAddress, selfAddress);
+                if (registered === true) {
+                    if (bound === true) {
+                        // 已注册, 钱包地址一致, 开始加载用户私有信息
+                        selfweb3.GetUser().Load(walletAddress, selfAddress, function() {
+                            // 已注册, 钱包地址一致, 用拿到的地址信息初始化profile(第一个卡片的内容), 用户加载流程完成
+                            console.log('selfAddress: ', selfAddress, 'web2Address: ', web2Address, 'contractAddress: ', selfweb3.GetWeb3().ContractAddress);
+                            self.$refs.homePanel.init(selfweb3.GetProps('recoverID'), selfweb3.GetProps('selfPrivate'));
+                        })
+                    } else {
+                        console.log('// 已注册, 但钱包地址不一致, 弹出modal框提示是否重新绑定钱包, 启动钱包重新绑定流程')
+                    }
+                } else {
+                    console.log('// 尚未注册')
+                    self.$refs.homePanel.hasRegisted = false;
+                }
+            }
+
             // 初始化js库
-            let walletAddress = this.walletAddress;
-            selfweb3.Init(selfweb3.GetWeb3().ContractSelfWeb3, this.$refs.walletPanel.web3.currentProvider, showMsg, function() {
-                // inputWeb2Key: 用户自己输入web2服务密钥, 可先为空
-                selfweb3.GetUser().Init(walletAddress, '', function(selfAddress, web2Address) {
-
-                    self.selfAddress = selfAddress;
-                    self.web2Address = web2Address;
-                    console.log('UserInit', selfAddress, web2Address)
-
-                    // check registered
-                    selfweb3.GetUser().Registered(walletAddress, selfAddress, function(registered, bound){
-                        if (registered === true) {
-                            if (bound === true) {
-                                // 已注册, 钱包地址一致, 开始加载用户私有信息
-                                selfweb3.GetUser().Load(walletAddress, selfAddress, function(){
-                                    console.log('// 已注册, 钱包地址一致, 用拿到的地址信息初始化profile(第一个卡片的内容), 用户加载流程完成')
-                                    self.$refs.privatePanel.init(selfweb3.GetProps('recoverID'), selfweb3.GetProps('web3Public'));
-                                });
-                            } else {
-                                console.log('// 已注册, 但钱包地址不一致, 弹出modal框提示是否重新绑定钱包, 启动钱包重新绑定流程')
-                            }
-                        } else {
-                            console.log('// 尚未注册')
-                            self.$refs.privatePanel.hasRegisted = false;
-                        }
-                    })
-                }, function(err){
-                    console.log('// 已注册, 钱包地址一致, 但需要用户自行输入web2服务密钥解密私有数据, 弹出modal框提示用户输入web2服务密钥, 确认后重新走user.Load流程')
-                })
-            });
+            const currentProvider = this.$refs.walletPanel.web3.currentProvider;
+            const bInit = await selfweb3.Init(selfweb3.GetWeb3().ContractSelfWeb3, currentProvider, showMsg);
+            if (!!bInit) selfweb3.GetUser().Init(walletAddress, '', initUserSuccessCb, function(err){
+                console.log('// 已注册, 钱包地址一致, 但需要用户自行输入web2服务密钥解密私有数据, 弹出modal框提示用户输入web2服务密钥, 确认后重新走selfweb3.GetUser().Init流程')
+            })
 
             //// no logic js
             // let self = this;
@@ -105,13 +104,13 @@ export default {
             //     self.initBackend();
             // })
         },
-        onAccountChanged(action, network, address) {
+        async onAccountChanged(action, network, address) {
             let self = this;
             if (action === 'connect') {
                 this.connect = true;
                 this.modelAuthID = address;
                 this.walletAddress = address;
-                this.webAuthnLogin();
+                await this.sysLoad(address);
             } else if (action === 'disconnect') {
                 this.connect = false;
                 this.walletAddress = '';
@@ -133,9 +132,9 @@ export default {
                     console.log('web3 contract: Web3Public successed: ', loadResult);
                     let recoverID = Web3.utils.hexToAscii(loadResult['recoverID']);
                     let web3Public = Web3.utils.hexToAscii(loadResult['web3Public']);
-                    self.$refs.privatePanel.hasRegisted = true;
+                    self.$refs.homePanel.hasRegisted = true;
                     self.enableSpin(false);
-                    self.$refs.privatePanel.init(recoverID, web3Public);
+                    self.$refs.homePanel.init(recoverID, web3Public);
                 }, function (err) {
                     self.enableSpin(false);
                     self.$Message.error('web3 contract: Web3Public failed');
@@ -190,7 +189,7 @@ export default {
         switchPanel(action, panelName, panelInitParam, afterVerifyFunc) {
             if (action === 'back' || action === '') {
                 this.showPanels[panelName] = false;
-                this.showHomePanel = !this.showHomePanel;
+                this.showIndexPanel = !this.showIndexPanel;
                 // this.reload();
                 return;
             }
@@ -212,7 +211,7 @@ export default {
                     return;
                 }
                 if (this.panelName === '' && optionPanelName !== undefined) this.panelName = optionPanelName;
-                this.showHomePanel = !this.showHomePanel;
+                this.showIndexPanel = !this.showIndexPanel;
                 this.showPanels[this.panelName] = true;
                 this.$refs[this.panelName].init(panelInitParam);
             } else {

@@ -265,7 +265,7 @@ export default {
                 }
                 this.web3 = web3;
                 this.networkId = networkId;
-                this.$parent.onAccountChanged('connect', this.networkId, walletAddress);
+                await this.$parent.onAccountChanged('connect', this.networkId, walletAddress);
 
                 // Subscribe to accounts change
                 account['connector'].on("change", (eventParam) => {

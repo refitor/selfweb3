@@ -19,10 +19,15 @@ const (
 )
 
 type Web2Data struct {
-	Nonce       []byte
-	Web2Key     string
-	WebAuthnKey string
-	Web2Private string
+	TOTPKey     []byte
+	Web2DHKey   []byte
+	Web2Public  []byte
+	Web3Public  []byte
+	WebAuthnKey []byte
+	SelfAddress string
+
+	// TODO: web3 storage
+	VerifyNonce int64
 }
 
 func Web2EncodeEx(priavateKey *ecdsa.PrivateKey, public string, data any) (string, error) {

@@ -56,7 +56,12 @@
 			},
 			{
 				"internalType": "bytes",
-				"name": "web3Public",
+				"name": "selfKey",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "selfPrivate",
 				"type": "bytes"
 			}
 		],
@@ -113,12 +118,12 @@
 			},
 			{
 				"internalType": "bytes",
-				"name": "web3Key",
+				"name": "selfKey",
 				"type": "bytes"
 			},
 			{
 				"internalType": "bytes",
-				"name": "web3Public",
+				"name": "selfPrivate",
 				"type": "bytes"
 			}
 		],
@@ -141,30 +146,6 @@
 				"internalType": "bool",
 				"name": "registered",
 				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "selfAddress",
-				"type": "address"
-			},
-			{
-				"internalType": "bytes",
-				"name": "vparam",
-				"type": "bytes"
-			}
-		],
-		"name": "Web3Key",
-		"outputs": [
-			{
-				"internalType": "bytes",
-				"name": "web3Key",
-				"type": "bytes"
 			}
 		],
 		"stateMutability": "view",

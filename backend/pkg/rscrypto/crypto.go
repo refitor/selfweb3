@@ -138,5 +138,5 @@ func HmacSha1(key, data []byte) []byte {
 
 func EthHash(data []byte) common.Hash {
 	// msgHash := crypto.Keccak256Hash(data).Bytes()
-	return crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)))
+	return crypto.Keccak256Hash([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), string(data))))
 }
