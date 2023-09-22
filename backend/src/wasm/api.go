@@ -92,7 +92,7 @@ func WasmRegister(datas ...string) *Response {
 	// init backendKey and recoverID
 	web3User, err := user.Register(recoverID)
 	if err != nil {
-		return wasmResponse(nil, WebError(err, "encrypt web3 key or recoverID failed"))
+		return wasmResponse(nil, WebError(err, "user register failed"))
 	}
 	return wasmResponse(web3User, "")
 }
@@ -198,6 +198,10 @@ func WasmVerify(datas ...string) *Response {
 			verifyErr = errors.New("invalid authorized cache")
 			break
 		}
+	case "WebAuthn":
+		if responseData, verifyErr = wasmHandle(kind, user, datas[len(datas)-1]); verifyErr != nil {
+			break
+		}
 	default:
 		return wasmResponse(nil, "unsuport authorize kind: "+kind)
 	}
@@ -213,7 +217,7 @@ const (
 	c_method_Web2Data       = "Web2Data"
 	c_method_WebAuthnKey    = "WebAuthnKey"
 	c_method_ResetTOTPKey   = "ResetTOTPKey"
-	c_method_ResetWeb2Key   = "ResetWeb2Key"
+	c_method_ResetSelfKey   = "ResetSelfKey"
 	c_method_RelationVerify = "TOTPVerify"
 )
 
@@ -229,31 +233,33 @@ func wasmHandle(kind string, user *User, params ...string) (handleResult any, ha
 	}
 	LogDebugf("before Handle: %v, %v, %+v", kind, params, user)
 
-	resetMap := make(map[string]any, 0)
+	// user load
+	selfKey, selfPrivate, err := user.Load()
+	if err != nil && user.SelfKey3 != "" {
+		return nil, err
+	}
+
+	relateVerifyMap := make(map[string]any, 0)
 	handleResult = "successed"
 	switch paramMap["method"] {
 	case c_method_Load:
-		_, handleErr = user.Load(paramMap[c_param_recoverID], paramMap[c_param_selfPrivate], "")
-	case c_method_ResetTOTPKey:
-		resetMap["Reset"], handleErr = user.ResetTOTPKey(params[len(params)-1], user.RecoverID)
-	case c_method_ResetWeb2Key:
-		return user.ResetSelfPass(params[len(params)-1], paramMap[c_param_random], paramMap[c_param_selfPass])
-	case c_method_Web2Data:
-		return Web2EncryptWeb2Data(user)
+		user.SelfKey3 = paramMap[c_param_selfKey]
+		user.RecoverID3 = paramMap[c_param_recoverID]
+		user.SelfPrivate3 = paramMap[c_param_selfPrivate]
 	case c_method_WebAuthnKey:
-		if selfKey, err := user.Load("", "", paramMap[c_param_selfKey]); err != nil {
-			return nil, err
-		} else {
-			return Web2DecryptWebAuthnKey(user, selfKey)
-		}
+		return Web2DecryptWebAuthnKey(user, selfKey)
+	case c_method_ResetTOTPKey:
+		relateVerifyMap["Reset"], handleErr = user.ResetTOTPKey(params[len(params)-1], user.RecoverID3, selfPrivate)
+	case c_method_ResetSelfKey:
+		return user.ResetSelfKey(params[len(params)-1], paramMap[c_param_random], paramMap[c_param_selfPass], selfPrivate)
 	}
 
 	// handle associated verify
-	if result, err := user.HandleAssociatedVerify(paramMap[c_verify_action], paramMap[c_param_relateTimes]); err == nil && result != nil {
+	if result, err := user.HandleAssociatedVerify(paramMap[c_verify_action], paramMap[c_param_relateTimes], selfPrivate); err == nil && result != nil {
 		handleResult = result
-		if len(resetMap) > 0 {
-			resetMap["RelateVerify"] = result
-			handleResult = resetMap
+		if len(relateVerifyMap) > 0 {
+			relateVerifyMap["RelateVerify"] = result
+			handleResult = relateVerifyMap
 		}
 	} else if err != nil {
 		handleErr = err
