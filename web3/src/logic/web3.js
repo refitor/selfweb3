@@ -11,7 +11,7 @@ const contracts = {
     "SelfWeb3": {
         '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
         '1': '0xd9E7C0d90aa186540E17fe6ee13F0De7E5B20EFe',
-        '421613': '0x7B6E05a55B1756f827F205BF454BF75288904ecF'
+        '421613': '0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1'
     }
 }
 export function SetContract(name) {
