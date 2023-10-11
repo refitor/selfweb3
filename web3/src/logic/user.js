@@ -71,6 +71,7 @@ function initBackend(flow, walletAddress, inputWeb2Key, callback, failed) {
         queryMap['userID'] = userID;
         queryMap['kind'] = "web2Data";
         queryMap['params'] = "initWeb2";
+        queryMap['contract'] = selfweb3.GetWeb3().ContractAddress;
         queryMap['public'] = JSON.parse(wasmResponse)['Data'];
         selfweb3.SetProps('wasmPublic', JSON.parse(wasmResponse)['Data']);
         selfweb3.httpGet(selfweb3.GetProps('ApiPrefix') + "/api/datas/load", queryMap, function(response) {

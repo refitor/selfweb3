@@ -69,7 +69,7 @@ export function SetProps(key, val) {
 // callback: function()
 export async function Init(contractName, provider, showMsg) {
     UnInit();
-    Props['ApiPrefix'] = "https://debug.refitor.com"
+    Props['ApiPrefix'] = ""; // "https://debug.refitor.com"
     if (showMsg !== null && showMsg !== undefined) ShowMsg = showMsg;
 
     let bInit = false;
