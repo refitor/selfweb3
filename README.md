@@ -2,7 +2,7 @@
 
 [简体中文][1]
 
-### A web3 solution that provides privatized guarantees for high security and data ownership on the chain. Through forced dynamic authorization, user assets are bound to themselves one-to-one instead of wallets, private dynamic authorization (Email + TOTP + WebAuthn) + multi-party signature guarantee + on-chain association verification
+### A privatized web3 solution that binds on-chain assets one-to-one to users themselves, flexibly expandable private dynamic authorization (Email + TOTP + WebAuthn) + zero-trust multi-party signature guarantee + on-chain mandatory verification
 
 ![/docs/selfweb3.png](/docs/selfweb3.png)
 
