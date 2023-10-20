@@ -14,7 +14,7 @@
 
 ## Architecture
 
-### Principle: After the user dynamically authorizes, the authorization correlation is first verified in the web2 service, and then signed and guaranteed by the self private key and the web2 service private key that are invisible to each other. The web3 contract compulsorily verifies and then goes on-chain. Operation, the three parties restrict each other, ensuring decentralized operation while providing highly secure privacy protection.
+### Principle: After dynamic authorization is completed off-chain, it is guaranteed by multi-party signatures invisible to each other to prove the legitimacy of the user's identity on the chain. All parties restrict each other to ensure decentralized operation while providing highly secure privacy protection.
 
 ![/docs/selfweb3-arch.png](/docs/selfweb3-arch.png)
 
