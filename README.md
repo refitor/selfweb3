@@ -12,11 +12,11 @@
 
 1. **Arbitrum Goerli, 421613: 0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1**
 
-## Security model: 
+## Security model
 
 ### [https://refitself.medium.com/a-privatized-web3-security-model-selfweb3-209439c5d8e2][3]
 
-## Architecture: 
+## Architecture
 
 ### [https://github.com/refitor/selfweb3/tree/main/docs/selfweb3-arch.md][2]
 
