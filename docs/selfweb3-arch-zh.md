@@ -2,7 +2,7 @@
 
 [简体中文][1]
 
-### 一种将链上资产一对一绑定到用户自己的私有化web3解决方案，灵活扩展的私有动态授权(Email + TOTP + WebAuthn) + 零信任多方签名担保 + 链上强制验证
+### 一种将Web3与用户自己一对一绑定的链上私有化解决方案，链下动态授权(Email + TOTP + WebAuthn) + 多方签名担保 + 链上强制验证
 
 ![/docs/selfweb3.png](/docs/selfweb3.png)
 
@@ -184,5 +184,5 @@ chmod +x ./build.sh
 ./selfweb3
 ```
 
-[1]: /docs/README-zh.md
+[1]: /docs/selfweb3-arch-zh.md
 [2]: https://refitself.medium.com/a-privatized-web3-security-model-selfweb3-209439c5d8e2
