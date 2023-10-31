@@ -2,7 +2,7 @@
 
 [简体中文][1]
 
-### 一种为链上高度安全和数据所有权提供私有化保障的web3解决方案，通过强制动态授权，将用户资产一对一绑定到自己，而非钱包，私有动态授权(Email + TOTP + WebAuthn) + 多方签名担保 + 链上关联验证
+### 一种将Web3与用户自己一对一绑定的链上私有化解决方案，链下动态授权(Email + TOTP + WebAuthn) + 多方签名担保 + 链上强制验证
 
 ![/docs/selfweb3.png](/docs/selfweb3.png)
 
@@ -14,7 +14,7 @@
 
 ## 系统架构
 
-### 原则: 在用户动态授权后, 先在web2服务中进行授权关联性验证, 再由相互不可见的self私钥和web2服务私钥各自签名担保，由web3合约强制性验证后进行链上操作，三方相互制约, 保证去中心化运作的同时, 提供高度安全的隐私保护
+### 原则: 链下完成动态授权后, 由相互不可见的多方签名担保，向链上证明用户身份的合法性，各方相互制约，保证去中心化运作的同时，提供高度安全的隐私保护
 
 ![/docs/selfweb3-arch.png](/docs/selfweb3-arch.png)
 
@@ -184,5 +184,5 @@ chmod +x ./build.sh
 ./selfweb3
 ```
 
-[1]: /docs/README-zh.md
+[1]: /docs/selfweb3-arch-zh.md
 [2]: https://refitself.medium.com/a-privatized-web3-security-model-selfweb3-209439c5d8e2
