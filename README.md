@@ -6,7 +6,7 @@
 
 ###
 
-![/docs/selfweb3.png](docs/selfweb3-bg.jpg)
+![/docs/selfweb3.png](docs/selfweb3-bg.png)
 
 ## Deployed contract
 
