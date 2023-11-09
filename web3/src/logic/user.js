@@ -37,6 +37,14 @@ export function Load(walletAddress, selfAddress, callback) {
     initWeb3(Flow_Load, walletAddress, selfAddress, callback);
 }
 
+export function Status(walletAddress) {
+    let state = false;
+    WasmStatus(walletAddress, function(wasmResponse){
+        state = JSON.parse(wasmResponse)["Data"];
+    })
+    return state;
+}
+
 function initWeb3(flow, walletAddress, selfAddress, callback) {
     let message = 'SelfWeb3 Init: ' + (new Date()).getTime();
     selfweb3.GetWeb3().Sign(walletAddress, message, function(sig) {
