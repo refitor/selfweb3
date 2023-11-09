@@ -12,6 +12,7 @@ func main() {
 	wasm.Init()
 
 	js.Global().Set("WasmInit", js.FuncOf(wrapWasmFunc(wasm.WasmInit)))
+	js.Global().Set("WasmStatus", js.FuncOf(wrapWasmFunc(wasm.WasmStatus)))
 	js.Global().Set("WasmHandle", js.FuncOf(wrapWasmFunc(wasm.WasmHandle)))
 	js.Global().Set("WasmVerify", js.FuncOf(wrapWasmFunc(wasm.WasmVerify)))
 	js.Global().Set("WasmPublic", js.FuncOf(wrapWasmFunc(wasm.WasmPublic)))
