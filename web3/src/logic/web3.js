@@ -126,9 +126,13 @@ export function Sign(walletAddress, msg, callback, failed) {
         params,
         from,
     }, function (error, result) {
-        if (error || result.error) {
-            console.log("sign message failed: ", error, result.error);
-            if (failed !== null && failed !== undefined) failed('sign message failed');
+        if (error) {
+            console.log("sign message failed, error: ", error);
+            if (failed !== null && failed !== undefined) failed(error.message);
+            return
+        } else if (result.error) {
+            console.log("sign message failed, result: ", result);
+            if (failed !== null && failed !== undefined) failed(result.error.message);
             return
         }
         if (callback !== null && callback !== undefined) callback(result.result);

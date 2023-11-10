@@ -109,11 +109,9 @@ func WasmStatus(datas ...string) *Response {
 	// register user
 	user := GetUser(userID)
 	if user == nil {
-		return wasmResponse(nil, "invalid user without init")
+		return wasmResponse(false, "")
 	}
-
-	bState := user.SelfKey3 != "" && user.SelfPrivate3 != "" && user.RecoverID3 != ""
-	return wasmResponse(bState, "")
+	return wasmResponse(user.SelfKey3 != "" && user.SelfPrivate3 != "" && user.RecoverID3 != "", "")
 }
 
 // @request userID: unique user ID
