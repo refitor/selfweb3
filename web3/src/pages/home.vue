@@ -319,15 +319,16 @@ export default {
                 //     self.$Message.error('Can not init SelfVault with relationVerify failed');
                 // })
 
-                let selfAddress = self.$parent.getSelf().selfAddress;;
-                let walletAddress = self.$parent.getSelf().getWalletAddress();
-                selfweb3.GetUser().EnterDapp(walletAddress, selfAddress, function(callback) {
-                    self.$parent.getSelf().RunTOTP(name, function(code) {
-                        callback(code);
+                // self.$parent.getSelf().afterVerifyFunc = null;
+                // self.$parent.getSelf().afterVerify(true, '', name);
+
+                self.$parent.getSelf().RunTOTP(name, function(code) {
+                    let selfAddress = self.$parent.getSelf().selfAddress;;
+                    let walletAddress = self.$parent.getSelf().getWalletAddress();
+                    selfweb3.GetUser().EnterDapp(walletAddress, selfAddress, code, function() {
+                        self.$parent.getSelf().afterVerifyFunc = null;
+                        self.$parent.getSelf().afterVerify(true, '', name);
                     })
-                }, function() {
-                    self.$parent.getSelf().afterVerifyFunc = null;
-                    self.$parent.getSelf().afterVerify(true, '', name);
                 })
             } else {
                 this.$parent.getSelf().switchPanel(name, name, contractAddr);

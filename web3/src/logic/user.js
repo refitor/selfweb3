@@ -134,7 +134,7 @@ export function Register(walletAddress, selfAddress, recoverID, callback) {
             registParams.push(Web3.utils.asciiToHex(response['Data']['SelfKey']));
             registParams.push(Web3.utils.asciiToHex(response['Data']['SelfPrivate']));
             // 流程: contract.Register ===> webAuthnRegister ===> /api/datas/store ===> TOTP QRCode
-            selfweb3.GetWeb3().Execute("send", Flow_Register, walletAddress, 0, registParams, function (result) {
+            selfweb3.GetWeb3().Execute("send", "Register", walletAddress, 0, registParams, function (result) {
                 // webAuthn register
                 verify3.WebAuthnRegister(Flow_Register, userID, function(){
                     StoreSelfData(userID, recoverID, response['Data']['Web2Data'], function() {
@@ -201,33 +201,25 @@ export function Reset(walletAddress, selfAddress, code, resetKind, callback) {
 
 2. callback()
 */
-export function EnterDapp(walletAddress, selfAddress, beginTOTPVerify, callback) {
-    if (beginTOTPVerify === undefined || beginTOTPVerify === null) {
-        selfweb3.ShowMsg("error", Flow_EnterDapp, "load web3Key failed", "invalid beginTOTPVerify function");
-        return;
-    }
-    console.log("EnterDapp: ", walletAddress, selfAddress)
-
-    beginTOTPVerify(function(code){
-        let web3Map = {"method": "TOTPVerify", "action": "query", "relateTimes": "1"};
-        verify3.TOTPVerify(Flow_EnterDapp, walletAddress, code, JSON.stringify(web3Map), function(wasmResponse) {
-            selfAuthVerify2(Flow_EnterDapp, walletAddress, web3Map['action'], wasmResponse, function(){
-                let web3Map = {"method": "WebAuthnKey", "selfKey": selfweb3.GetProps('selfKey')};
-                WasmHandle(walletAddress, JSON.stringify(web3Map), function(wasmWebAuthnResponse) {
-                    console.log('WebAuthnKey: ', wasmWebAuthnResponse);
-                    verify3.WebAuthnLogin(Flow_EnterDapp, walletAddress, JSON.parse(wasmWebAuthnResponse)['Data'], function() {
-                        if (callback !== undefined && callback !== null) callback();
-                    }, function(err) {
-                        selfweb3.ShowMsg('error', Flow_EnterDapp, 'webAuthn verify failed', err);
-                    })
+export function EnterDapp(walletAddress, selfAddress, code, callback) {
+    let web3Map = {"method": "TOTPVerify", "action": "query", "relateTimes": "1"};
+    verify3.TOTPVerify(Flow_EnterDapp, walletAddress, code, JSON.stringify(web3Map), function(wasmResponse) {
+        selfAuthVerify2(Flow_EnterDapp, walletAddress, web3Map['action'], wasmResponse, function(){
+            let web3Map = {"method": "WebAuthnKey", "selfKey": selfweb3.GetProps('selfKey')};
+            WasmHandle(walletAddress, JSON.stringify(web3Map), function(wasmWebAuthnResponse) {
+                console.log('WebAuthnKey: ', wasmWebAuthnResponse);
+                verify3.WebAuthnLogin(Flow_EnterDapp, walletAddress, JSON.parse(wasmWebAuthnResponse)['Data'], function() {
+                    if (callback !== undefined && callback !== null) callback();
+                }, function(err) {
+                    selfweb3.ShowMsg('error', Flow_EnterDapp, 'webAuthn verify failed', err);
                 })
-            });
-        })
+            })
+        });
     })
 }
 
 // action: query, update
-function selfAuthVerify2(flow, walletAddress, action, verifyParams, callback) {
+export function selfAuthVerify2(flow, walletAddress, action, verifyParams, callback) {
     let formdata = new FormData();
     formdata.append("action", action);
     formdata.append("kind", "relateVerify");
@@ -247,7 +239,7 @@ function selfAuthVerify2(flow, walletAddress, action, verifyParams, callback) {
     })
 }
 
-function selfAuthVerify3(flow, walletAddress, selfAddress, method, verifyParams, callback) {
+export function selfAuthVerify3(flow, walletAddress, selfAddress, method, verifyParams, callback) {
     packRelateVerifyParams(flow, walletAddress, 'update', verifyParams, function(merkleParams){
         let loadParams = [];
         loadParams.push(selfAddress);

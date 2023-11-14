@@ -15,6 +15,7 @@ contract SelfWeb3 is Ownable {
     struct MetaData {
         address Web2Address;
         uint256 RegistTotal;
+        uint256 feeRate;
     }
     struct SelfData {
         address Wallet;         // The wallet bound by the user is used to interact with the web3 contract
@@ -25,21 +26,23 @@ contract SelfWeb3 is Ownable {
     }
     MetaData private _metaData;
     mapping (address => SelfData) private _dataMap;
+    mapping (address => uint256) private _vaultMap;
 
     /**
      * @dev constructor is used to populate the meta information of the contract.
      * @param web2Address The web2 server address.
+     * @param feeRate fee deduction percentage set by the contract creator, demo: 500 / 10000, feeRate is 500.
      */
-    constructor(address web2Address) {
-        _metaData = MetaData(web2Address, 0);
+    constructor(address web2Address, uint256 feeRate) Ownable(msg.sender) {
+        _metaData = MetaData(web2Address, 0, feeRate);
     }
 
     /**
      * @dev Meta is used to load the meta information of the contract.
      */
-    function Meta() view public returns (uint256 registTotal) {
+    function Meta() view public returns (uint256 registTotal, uint256 feeRate) {
         MetaData memory md = _get();
-        return md.RegistTotal;
+        return (md.RegistTotal, md.feeRate);
     }
 
     /**
@@ -100,6 +103,97 @@ contract SelfWeb3 is Ownable {
         _setKV(selfAddress, sd);
         delete sigAddrList;
     }
+
+    /**
+     * @dev Registered is used to check if the user is registered.
+     * @param selfAddress The user’s unique address in selfWeb3.
+     */
+    function Balance(address selfAddress) view external returns (uint256 amount) {
+        SelfData memory sd = _getKV(selfAddress);
+        require(sd.SelfPrivate.length != 0, "not registered yet");
+        return _getVault(selfAddress);
+    }
+
+    /**
+     * @dev Deposit is used to deposit native assets supported by selfWeb3.
+     * @param selfAddress The user’s unique address in selfWeb3.
+     * @param vparam Used for on-chain verification.
+     */
+    function Deposit(address selfAddress, bytes memory vparam) external payable {
+        MetaData memory md = _get();
+        SelfData memory sd = _getKV(selfAddress);
+
+        // on-chain associated validation
+        address[] memory sigAddrList = new address[](2);
+        sigAddrList[0] = selfAddress;
+        sigAddrList[1] = md.Web2Address;
+        bytes32 verifyRoot = SelfValidator.RelateVerify(sd.VerifyRoot, vparam, sigAddrList); // Prioritize verification
+        if(verifyRoot != sd.VerifyRoot && verifyRoot != bytes32(0)) {
+            sd.VerifyRoot = verifyRoot;
+            _setKV(selfAddress, sd);
+        }
+        delete sigAddrList;
+
+        require(msg.value > 0, "invalid deposited amount");
+        require(sd.SelfPrivate.length != 0, "not registered yet");
+
+        // on-chain vault management
+        _setVault(selfAddress, _getVault(selfAddress) + msg.value);
+    }
+
+    /**
+     * @dev Withdraw is used to withdraw native assets supported by selfWeb3.
+     * @param selfAddress The user’s unique address in selfWeb3.
+     * @param vparam Used for on-chain verification.
+     * @param amount withdrawal native assets amount.
+     */
+    function Withdraw(address selfAddress, bytes memory vparam, uint256 amount) external payable {
+        MetaData memory md = _get();
+        SelfData memory sd = _getKV(selfAddress);
+
+        // on-chain associated validation
+         address[] memory sigAddrList = new address[](2);
+        sigAddrList[0] = selfAddress;
+        sigAddrList[1] = md.Web2Address;
+        bytes32 verifyRoot = SelfValidator.RelateVerify(sd.VerifyRoot, vparam, sigAddrList); // Prioritize verification
+        if(verifyRoot != sd.VerifyRoot && verifyRoot != bytes32(0)) {
+            sd.VerifyRoot = verifyRoot;
+            _setKV(selfAddress, sd);
+        }
+        delete sigAddrList;
+
+        require(amount > 0, "invalid withdraw amount");
+        require(sd.SelfPrivate.length != 0, "not registered yet");
+
+        // on-chain vault management
+        if (md.feeRate > 0) {
+            uint256 payFee = amount * md.feeRate / 10000;
+            require(amount - payFee > 0 && amount - payFee <= _getVault(selfAddress), "not enough extractable quantity");
+            payable(owner()).sendValue(payFee);
+            amount = amount - payFee;
+        } else {
+            require(amount > 0 && amount <= _getVault(selfAddress), "not enough extractable quantity");
+        }
+        _setVault(selfAddress, _getVault(selfAddress) - amount);
+    }
+
+    /**
+     * @dev _setKV is used to set dataMap.
+     * @param k the key for _datamap.
+     * @param v the value for _datamap.
+     */
+    function _setVault(address k, uint256 v) private {
+        _vaultMap[k] = v;
+    }
+
+    /**
+     * @dev _getKV is used to get the value by the key.
+     * @param k the key for _datamap.
+     */
+    function _getVault(address k) private view returns (uint256) {
+        return _vaultMap[k];
+    }
+
 
     /**
      * @dev _setKV is used to set dataMap.

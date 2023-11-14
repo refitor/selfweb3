@@ -5,10 +5,26 @@
 				"internalType": "address",
 				"name": "web2Address",
 				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "feeRate",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
+			}
+		],
+		"name": "AddressInsufficientBalance",
+		"type": "error"
 	},
 	{
 		"inputs": [],
@@ -35,6 +51,11 @@
 			}
 		],
 		"name": "ECDSAInvalidSignatureS",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "FailedInnerCall",
 		"type": "error"
 	},
 	{
@@ -84,6 +105,38 @@
 				"internalType": "address",
 				"name": "selfAddress",
 				"type": "address"
+			}
+		],
+		"name": "Balance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			}
+		],
+		"name": "Deposit",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
 			},
 			{
 				"internalType": "bytes",
@@ -124,6 +177,11 @@
 			{
 				"internalType": "uint256",
 				"name": "registTotal",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "feeRate",
 				"type": "uint256"
 			}
 		],
@@ -198,6 +256,24 @@
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "selfAddress",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "Withdraw",
+		"outputs": [],
+		"stateMutability": "payable",
 		"type": "function"
 	},
 	{
