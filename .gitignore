@@ -24,6 +24,6 @@ web3/public/selfweb3.wasm
 dist/
 vendor/
 selfweb3/
-rsweb/app/
+rsweb/dapp/
 node_modules/
 web/public/wasm/selfweb3.wasm
