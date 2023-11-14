@@ -127,9 +127,6 @@ func (p *User) Register(recoverID string) (*Web3User, error) {
 	if recoverID == "" {
 		return nil, errors.New("invalid recoverID")
 	}
-	if p.SelfPrivate3 != "" {
-		return nil, fmt.Errorf("user registration again and again")
-	}
 	wd2 := &pkg.Web2Data{}
 
 	// init web3User

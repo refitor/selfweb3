@@ -9,8 +9,8 @@ export let ContractAddress = '';
 export const ContractSelfWeb3 = "SelfWeb3";
 const contracts = {
     "SelfWeb3": {
-        '5': '0xcE25460c82A2dE7D4bBEd1fA98C4a3f27f6362df',
-        '1': '0x844fc2F100d7be5ea83bB387b2329a0048223fd2',
+        '5': '0xC45A26Fc2214C88C2fA6966C92a43f9e940C7254',
+        '1': '0x0f00a407409d48fFA355485b928267A94FE73407',
         '5611': '0x7B6E05a55B1756f827F205BF454BF75288904ecF',
         '421613': '0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1'
     }
@@ -126,9 +126,13 @@ export function Sign(walletAddress, msg, callback, failed) {
         params,
         from,
     }, function (error, result) {
-        if (error || result.error) {
-            console.log("sign message failed: ", error, result.error);
-            if (failed !== null && failed !== undefined) failed('sign message failed');
+        if (error) {
+            console.log("sign message failed, error: ", error);
+            if (failed !== null && failed !== undefined) failed(error.message);
+            return
+        } else if (result.error) {
+            console.log("sign message failed, result: ", result);
+            if (failed !== null && failed !== undefined) failed(result.error.message);
             return
         }
         if (callback !== null && callback !== undefined) callback(result.result);

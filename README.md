@@ -6,13 +6,15 @@
 
 ###
 
-![/docs/selfweb3.png](docs/selfweb3-bg.jpg)
+![/docs/selfweb3.png](docs/selfweb3-bg.png)
 
 ## Deployed contract
 
-1. **Arbitrum Goerli, 421613: 0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1**
+1. **Goerli: 5: 0xC45A26Fc2214C88C2fA6966C92a43f9e940C7254**
 
-2. **opBNB Testnet, 5611: 0x7B6E05a55B1756f827F205BF454BF75288904ecF**
+2. **Arbitrum Goerli, 421613: 0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1**
+
+3. **opBNB Testnet, 5611: 0x7B6E05a55B1756f827F205BF454BF75288904ecF**
 
 ## Security model
 

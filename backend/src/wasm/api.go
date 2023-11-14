@@ -97,6 +97,23 @@ func WasmRegister(datas ...string) *Response {
 	return wasmResponse(web3User, "")
 }
 
+// @request userID unique user ID
+// @response user status or error
+func WasmStatus(datas ...string) *Response {
+	LogDebugf("WasmStatus request: %v", datas)
+	if len(datas) < 1 || datas[0] == "" {
+		return wasmResponse(nil, c_Error_InvalidParams)
+	}
+	userID := datas[0]
+
+	// register user
+	user := GetUser(userID)
+	if user == nil {
+		return wasmResponse(false, "")
+	}
+	return wasmResponse(user.SelfKey3 != "" && user.SelfPrivate3 != "" && user.RecoverID3 != "", "")
+}
+
 // @request userID: unique user ID
 // @request authorizedID: ID used for dynamic authorization, such as email address, mobile phone number, etc
 // @response successed or error
