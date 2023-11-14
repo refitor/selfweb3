@@ -9,7 +9,7 @@ export default defineConfig({
   alias: {
     "@": path.resolve(__dirname, "src"),
   },
-  base: '/app/',
+  base: '/dapp/',
   publicDir:'public',
   optimizeDeps: { // 👈 optimizedeps
     esbuildOptions: {
@@ -31,7 +31,7 @@ export default defineConfig({
       // maxParallelFileOps: 2,
       cache: false,
     },
-    outDir: "../rsweb/app",
+    outDir: "../rsweb/dapp",
 
     terserOptions: {
         compress: {
