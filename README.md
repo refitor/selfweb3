@@ -10,7 +10,7 @@
 
 ## Deployed contract
 
-1. **Goerli: 5: 0xC45A26Fc2214C88C2fA6966C92a43f9e940C7254**
+1. **Goerli: 5: 0x733755781396f53Be6cEd253f4C25C5ecE82Cd26**
 
 2. **Arbitrum Goerli, 421613: 0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1**
 
