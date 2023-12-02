@@ -14,8 +14,6 @@
 
 2. **Arbitrum Goerli, 421613: 0xec04F8Ee0493f3d763AB1624BB6aAcaCD94Ac4C1**
 
-3. **opBNB Testnet, 5611: 0x7B6E05a55B1756f827F205BF454BF75288904ecF**
-
 ## Security model
 
 ### [https://selfweb3.medium.com/a-private-web3-solution-selfweb3-b3f93a4fba38][3]
