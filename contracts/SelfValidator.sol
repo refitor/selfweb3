@@ -1,13 +1,13 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import '@openzeppelin/contracts/utils/math/SafeMath.sol';
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import '@openzeppelin/contracts/utils/math/Math.sol';
+import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
+import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
 
 library SelfValidator {
     using ECDSA for bytes32;
-    using SafeMath for uint256;
+    using Math for uint256;
 
     struct VerifyParam {
         uint256[] kindList;         // 1: web2Address, 2: selfAddress

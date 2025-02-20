@@ -1,16 +1,16 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/Address.sol';
-import '@openzeppelin/contracts/utils/math/SafeMath.sol';
+import '@openzeppelin/contracts/utils/math/Math.sol';
 
 import "./SelfValidator.sol";
 
 // @title The Selfweb3 contract is used to provide decentralized key management services.
 // @author refitor
 contract SelfWeb3 is Ownable {
-    using SafeMath for uint256;
+    using Math for uint256;
     using Address for address payable;
     struct MetaData {
         address Web2Address;
