@@ -14,7 +14,7 @@ Nexus Testnet 392: 0xE690c14e620A8E66e449f4D546bcB96CF89A8c15
 
 ## Security model
 
-### [https://refitself.medium.com/a-privatized-web3-security-model-selfweb3-209439c5d8e2][3]
+### [https://selfweb3.medium.com/a-private-web3-solution-selfweb3-b3f93a4fba38][3]
 
 ## Architecture
 
@@ -40,4 +40,4 @@ chmod +x ./build.sh
 
 [1]: https://selfweb3.refitor.com
 [2]: /docs/selfweb3-arch.md
-[3]: https://refitself.medium.com/a-privatized-web3-security-model-selfweb3-209439c5d8e2
+[3]: https://selfweb3.medium.com/a-private-web3-solution-selfweb3-b3f93a4fba38

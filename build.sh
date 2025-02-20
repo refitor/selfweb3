@@ -4,12 +4,12 @@ go mod tidy
 
 # build selfweb3.wasm
 cd ./backend/wasm
-rm ../../web3/public/selfweb3.wasm
+rm ../../vweb/public/selfweb3.wasm
 GOOS=js GOARCH=wasm go build -ldflags="-w -s" -o ../../rsweb/selfweb3.wasm
 cd ../../
 
 # # build web
-cd ./web3
+cd ./vweb
 rm -rf ../rsweb/app
 yarn install
 yarn run build
